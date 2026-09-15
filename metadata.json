@@ -1,0 +1,6 @@
+{
+  "name": "Wing-C Lakeview Apartment",
+  "description": "Mobile accounting ledger, maintenance tracker, electricity billing, and resident management system for Wing-C Lakeview Apartment, Burari, Delhi.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
