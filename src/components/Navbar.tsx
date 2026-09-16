@@ -11,30 +11,29 @@ import {
   Smartphone,
   ChevronDown,
   Package,
-  Car
+  Car,
+  FileDown
 } from 'lucide-react';
 
 interface NavbarProps {
   onOpenAuth: () => void;
   onOpenPlayStoreModal: () => void;
-  isMobileDeviceFrame: boolean;
-  onToggleMobileFrame: () => void;
+  isMobileDeviceFrame?: boolean;
+  onToggleMobileFrame?: () => void;
   onNavigateToTab: (tab: string) => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
   onOpenAuth,
   onOpenPlayStoreModal,
-  isMobileDeviceFrame,
-  onToggleMobileFrame,
   onNavigateToTab,
 }) => {
-  const { currentUser, currentRole, isAdmin, logout, selectedMonth, setSelectedMonth, availableMonths } = useSociety();
+  const { currentUser, currentRole, isAdmin, logout, selectedMonth, setSelectedMonth, availableMonths, activeRunningMonth } = useSociety();
   const [showUserDropdown, setShowUserDropdown] = useState(false);
 
   return (
-    <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800">
-      <div className="max-w-6xl mx-auto px-3 sm:px-4 py-2.5 flex items-center justify-between gap-2">
+    <header className="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 safe-area-top">
+      <div className="max-w-6xl mx-auto px-3 sm:px-4 py-2 sm:py-2.5 flex items-center justify-between gap-2">
         {/* Left: Branding */}
         <div className="flex items-center gap-2.5 min-w-0">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 p-0.5 shadow-md flex items-center justify-center shrink-0">
@@ -56,19 +55,19 @@ export const Navbar: React.FC<NavbarProps> = ({
         </div>
 
         {/* Center/Right: Month Selector + Actions */}
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           {/* Running Month Selector */}
-          <div className="flex items-center bg-slate-800 border border-slate-700 rounded-lg px-2 py-1 shadow-xs">
-            <Calendar className="w-3.5 h-3.5 text-emerald-400 mr-1.5 shrink-0" />
+          <div className="flex items-center bg-slate-800 border border-slate-700 rounded-lg px-1.5 sm:px-2 py-1 shadow-xs max-w-[110px] xs:max-w-[130px] sm:max-w-none">
+            <Calendar className="w-3.5 h-3.5 text-emerald-400 mr-1 shrink-0" />
             <select
               id="month-selector"
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(e.target.value)}
-              className="bg-transparent text-xs font-semibold text-slate-100 focus:outline-hidden cursor-pointer"
+              className="bg-transparent text-[11px] sm:text-xs font-semibold text-slate-100 focus:outline-hidden cursor-pointer truncate"
             >
               {availableMonths.map((m) => (
                 <option key={m} value={m} className="bg-slate-900 text-white">
-                  {getMonthDisplayName(m)}
+                  {getMonthDisplayName(m)} {m === activeRunningMonth ? '(Running)' : ''}
                 </option>
               ))}
             </select>
@@ -77,24 +76,12 @@ export const Navbar: React.FC<NavbarProps> = ({
           {/* PWA Install Button */}
           <PWAInstallButton />
 
-          {/* Android Mobile Frame toggle for desktop */}
-          <button
-            type="button"
-            id="toggle-mobile-frame"
-            onClick={onToggleMobileFrame}
-            title={isMobileDeviceFrame ? "Switch to Full Width" : "Switch to Mobile Device View"}
-            className="hidden lg:flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800 text-xs text-slate-300 hover:text-white hover:bg-slate-700 transition"
-          >
-            <Smartphone className="w-3.5 h-3.5 text-sky-400" />
-            <span>{isMobileDeviceFrame ? "Full Screen" : "Mobile View"}</span>
-          </button>
-
-          {/* Host & APK Test Button */}
+          {/* Host & APK Test Button (Hidden on small mobile to prevent header overflow, accessible via menu) */}
           <button
             type="button"
             id="btn-playstore-guide"
             onClick={onOpenPlayStoreModal}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/30 text-xs font-semibold transition shadow-xs"
+            className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-600/20 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-600/30 text-xs font-semibold transition shadow-xs"
           >
             <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
             <span>Host &amp; APK Test</span>
@@ -107,22 +94,22 @@ export const Navbar: React.FC<NavbarProps> = ({
                 type="button"
                 id="user-menu-btn"
                 onClick={() => setShowUserDropdown(!showUserDropdown)}
-                className="flex items-center gap-1.5 py-1 px-2 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700/80 transition"
+                className="flex items-center gap-1 sm:gap-1.5 py-1 px-1.5 sm:px-2 rounded-lg bg-slate-800 border border-slate-700 hover:bg-slate-700/80 transition"
               >
-                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold text-white ${
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] sm:text-[11px] font-bold text-white shrink-0 ${
                   isAdmin ? 'bg-amber-600' : 'bg-emerald-600'
                 }`}>
                   {isAdmin ? <Shield className="w-3.5 h-3.5" /> : currentUser.flatNumber.replace('C-', '')}
                 </div>
-                <span className="text-xs font-medium text-slate-200 hidden md:inline truncate max-w-[100px]">
+                <span className="text-xs font-medium text-slate-200 hidden lg:inline truncate max-w-[90px]">
                   {currentUser.name.split(' ')[0]}
                 </span>
-                <span className={`text-[10px] px-1 py-0.2 rounded font-bold uppercase ${
+                <span className={`text-[9px] sm:text-[10px] px-1 py-0.2 rounded font-bold uppercase ${
                   isAdmin ? 'bg-amber-500/20 text-amber-300' : 'bg-slate-700 text-slate-300'
                 }`}>
                   {currentRole}
                 </span>
-                <ChevronDown className="w-3 h-3 text-slate-400" />
+                <ChevronDown className="w-3 h-3 text-slate-400 shrink-0" />
               </button>
 
               {/* Dropdown Menu */}
@@ -151,6 +138,18 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span>My Profile & Vehicles</span>
                   </button>
 
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowUserDropdown(false);
+                      onOpenPlayStoreModal();
+                    }}
+                    className="w-full text-left px-3 py-2 text-sky-300 hover:bg-slate-800 flex items-center gap-2"
+                  >
+                    <Smartphone className="w-3.5 h-3.5 text-sky-400" />
+                    <span>Host &amp; Android APK Guide</span>
+                  </button>
+
                   {isAdmin && (
                     <button
                       type="button"
@@ -176,6 +175,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <UserIcon className="w-3.5 h-3.5 text-sky-400" />
                     <span>Switch Resident / Register</span>
                   </button>
+
+                  <a
+                    href="/wing-c-lakeview-android-project.zip"
+                    download="wing-c-lakeview-android-project.zip"
+                    onClick={() => setShowUserDropdown(false)}
+                    className="w-full text-left px-3 py-2 text-emerald-400 hover:bg-slate-800 flex items-center gap-2 font-medium"
+                  >
+                    <FileDown className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Download Android Project (ZIP)</span>
+                  </a>
 
                   <div className="border-t border-slate-800 mt-1 pt-1">
                     <button

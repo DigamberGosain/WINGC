@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useSociety } from '../context/SocietyContext';
 import { isValidIndianMobile, isValidIndianVehicle, formatIndianVehicle } from '../utils/formatters';
-import { ShieldCheck, UserCheck, KeyRound, Building, Phone, Mail, Car, Bike, AlertCircle, CheckCircle2, Lock } from 'lucide-react';
+import { ShieldCheck, UserCheck, KeyRound, Building, Phone, Mail, Car, Bike, AlertCircle, CheckCircle2, Lock, Home, Key } from 'lucide-react';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -26,6 +26,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, defaultMo
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [regRole, setRegRole] = useState<'user' | 'admin'>('user');
+  const [regOccupancy, setRegOccupancy] = useState<'owner' | 'tenant'>('owner');
+  const [regOwnerName, setRegOwnerName] = useState('');
+  const [regOwnerContact, setRegOwnerContact] = useState('');
   const [regTwoWheeler, setRegTwoWheeler] = useState('');
   const [regCar, setRegCar] = useState('');
 
@@ -83,6 +86,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, defaultMo
       return;
     }
 
+    // Tenant / Rented House validation
+    if (regOccupancy === 'tenant') {
+      if (!regOwnerName.trim()) {
+        setError('Flat owner / landlord name is required for rented houses.');
+        return;
+      }
+      if (!regOwnerContact.trim() || !isValidIndianMobile(regOwnerContact)) {
+        setError('Please enter a valid 10-digit contact number for the flat owner / landlord.');
+        return;
+      }
+    }
+
     const res = registerUser({
       name: regName.trim(),
       flatNumber: regFlat.trim().toUpperCase(),
@@ -90,6 +105,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, defaultMo
       email: regEmail.trim(),
       password: regPassword,
       role: regRole,
+      occupancyType: regOccupancy,
+      ownerName: regOccupancy === 'tenant' ? regOwnerName.trim() : undefined,
+      ownerContact: regOccupancy === 'tenant' ? regOwnerContact.trim() : undefined,
       twoWheelerNumber: formatIndianVehicle(regTwoWheeler),
       carNumber: formatIndianVehicle(regCar),
     });
@@ -365,6 +383,88 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, defaultMo
                   required
                 />
               </div>
+            </div>
+
+            {/* Occupancy Status: Owned vs Rented */}
+            <div className="p-3 rounded-xl bg-slate-800/60 border border-slate-700 text-xs">
+              <span className="font-medium text-slate-200 block mb-1.5">House Occupancy Status *</span>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  id="occupancy-owner-btn"
+                  onClick={() => setRegOccupancy('owner')}
+                  className={`py-2 px-3 rounded-lg border text-left flex items-center gap-2 transition ${
+                    regOccupancy === 'owner'
+                      ? 'border-emerald-500 bg-emerald-500/10 text-emerald-300'
+                      : 'border-slate-700 bg-slate-800 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Home className="w-4 h-4 shrink-0 text-emerald-400" />
+                  <div>
+                    <div className="font-semibold">Owned</div>
+                    <div className="text-[10px] opacity-80">Self-Occupied Owner</div>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  id="occupancy-tenant-btn"
+                  onClick={() => setRegOccupancy('tenant')}
+                  className={`py-2 px-3 rounded-lg border text-left flex items-center gap-2 transition ${
+                    regOccupancy === 'tenant'
+                      ? 'border-amber-500 bg-amber-500/10 text-amber-300'
+                      : 'border-slate-700 bg-slate-800 text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Key className="w-4 h-4 shrink-0 text-amber-400" />
+                  <div>
+                    <div className="font-semibold">Rented</div>
+                    <div className="text-[10px] opacity-80">Tenant / Lease</div>
+                  </div>
+                </button>
+              </div>
+
+              {/* Tenant conditional inputs */}
+              {regOccupancy === 'tenant' && (
+                <div className="mt-3 pt-3 border-t border-slate-700/80 space-y-2.5">
+                  <div className="text-[11px] text-amber-300 flex items-center gap-1 font-medium">
+                    <Key className="w-3.5 h-3.5 shrink-0" />
+                    Please provide Flat Owner (Landlord) details:
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] text-slate-300 mb-1">
+                        Owner / Landlord Name *
+                      </label>
+                      <input
+                        type="text"
+                        id="reg-owner-name"
+                        value={regOwnerName}
+                        onChange={(e) => setRegOwnerName(e.target.value)}
+                        placeholder="Owner full name"
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-amber-500"
+                        required={regOccupancy === 'tenant'}
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] text-slate-300 mb-1">
+                        Owner Contact Mobile *
+                      </label>
+                      <input
+                        type="tel"
+                        id="reg-owner-contact"
+                        value={regOwnerContact}
+                        onChange={(e) => setRegOwnerContact(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                        placeholder="10-digit mobile"
+                        className="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-slate-500 focus:ring-1 focus:ring-amber-500"
+                        required={regOccupancy === 'tenant'}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div>

@@ -1,0 +1,142 @@
+{
+  "entities": {
+    "user": {
+      "title": "User",
+      "description": "Resident or administrator of Wing-C Lakeview Apartment",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "role": { "type": "string", "enum": ["admin", "user"] },
+        "flatNumber": { "type": "string", "maxLength": 20 },
+        "mobile": { "type": "string", "maxLength": 15 },
+        "email": { "type": "string", "maxLength": 100 },
+        "password": { "type": "string", "maxLength": 100 },
+        "occupancyType": { "type": "string", "enum": ["owner", "tenant"] },
+        "ownerName": { "type": "string", "maxLength": 100 },
+        "ownerContact": { "type": "string", "maxLength": 20 },
+        "twoWheelerNumber": { "type": "string", "maxLength": 30 },
+        "carNumber": { "type": "string", "maxLength": 30 },
+        "registeredAt": { "type": "string", "maxLength": 50 },
+        "adminAppointedDate": { "type": "string", "maxLength": 50 },
+        "adminTenureMonths": { "type": "number" }
+      },
+      "required": ["id", "name", "role", "flatNumber", "mobile", "email", "registeredAt"]
+    },
+    "expense": {
+      "title": "ExpenseItem",
+      "description": "Society operational expense item or voucher",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "monthYear": { "type": "string", "maxLength": 10 },
+        "title": { "type": "string", "maxLength": 150 },
+        "category": { "type": "string", "maxLength": 50 },
+        "amount": { "type": "number" },
+        "date": { "type": "string", "maxLength": 30 },
+        "paidTo": { "type": "string", "maxLength": 100 },
+        "paymentMethod": { "type": "string", "maxLength": 30 },
+        "receiptNote": { "type": "string", "maxLength": 300 },
+        "recordedBy": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["id", "monthYear", "title", "category", "amount", "date", "paidTo", "paymentMethod", "recordedBy"]
+    },
+    "maintenanceRecord": {
+      "title": "MaintenanceRecord",
+      "description": "Maintenance due, arrears, and payment status for a specific flat and month",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "monthYear": { "type": "string", "maxLength": 10 },
+        "userId": { "type": "string", "maxLength": 128 },
+        "userName": { "type": "string", "maxLength": 100 },
+        "flatNumber": { "type": "string", "maxLength": 20 },
+        "phone": { "type": "string", "maxLength": 20 },
+        "maintenanceDue": { "type": "number" },
+        "maintenancePaid": { "type": "number" },
+        "isPaid": { "type": "boolean" },
+        "paidDate": { "type": "string", "maxLength": 30 },
+        "markedDate": { "type": "string", "maxLength": 30 },
+        "paymentMethod": { "type": "string", "maxLength": 30 },
+        "transactionRef": { "type": "string", "maxLength": 100 },
+        "pendingAmount": { "type": "number" },
+        "notes": { "type": "string", "maxLength": 300 }
+      },
+      "required": ["id", "monthYear", "userId", "userName", "flatNumber", "maintenanceDue", "maintenancePaid", "isPaid", "pendingAmount"]
+    },
+    "electricityBill": {
+      "title": "ElectricityBill",
+      "description": "Common electricity bill record for a given billing period",
+      "type": "object",
+      "properties": {
+        "monthYear": { "type": "string", "maxLength": 10 },
+        "billAmount": { "type": "number" },
+        "consumerNumber": { "type": "string", "maxLength": 50 },
+        "billingPeriod": { "type": "string", "maxLength": 100 },
+        "unitsConsumed": { "type": "number" },
+        "dueDate": { "type": "string", "maxLength": 30 },
+        "isPaid": { "type": "boolean" },
+        "paidDate": { "type": "string", "maxLength": 30 },
+        "paymentRef": { "type": "string", "maxLength": 100 },
+        "billDetails": { "type": "string", "maxLength": 200 },
+        "updatedBy": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["monthYear", "billAmount", "consumerNumber", "billingPeriod", "unitsConsumed", "dueDate", "isPaid"]
+    },
+    "monthConfig": {
+      "title": "MonthConfig",
+      "description": "Configuration, opening balance, and summary for a society accounting month",
+      "type": "object",
+      "properties": {
+        "monthYear": { "type": "string", "maxLength": 10 },
+        "monthName": { "type": "string", "maxLength": 50 },
+        "standardMaintenanceAmount": { "type": "number" },
+        "proposedMaintenanceSummary": { "type": "string", "maxLength": 500 },
+        "openingBalance": { "type": "number" }
+      },
+      "required": ["monthYear", "monthName", "standardMaintenanceAmount", "openingBalance"]
+    },
+    "adminHandoverLog": {
+      "title": "AdminHandoverLog",
+      "description": "History log of single-admin authority transfer",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "fromAdminName": { "type": "string", "maxLength": 100 },
+        "fromAdminFlat": { "type": "string", "maxLength": 20 },
+        "toAdminName": { "type": "string", "maxLength": 100 },
+        "toAdminFlat": { "type": "string", "maxLength": 20 },
+        "transferDate": { "type": "string", "maxLength": 30 },
+        "handoverTenureMonths": { "type": "number" },
+        "remarks": { "type": "string", "maxLength": 300 }
+      },
+      "required": ["id", "fromAdminName", "toAdminName", "transferDate", "handoverTenureMonths"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "user",
+      "description": "Registered resident profiles and admin flags"
+    },
+    "/expenses/{expenseId}": {
+      "schema": "expense",
+      "description": "Monthly society vouchers and expenditures"
+    },
+    "/maintenanceRecords/{recordId}": {
+      "schema": "maintenanceRecord",
+      "description": "Maintenance payment records by flat and month"
+    },
+    "/electricityBills/{billId}": {
+      "schema": "electricityBill",
+      "description": "Monthly electricity bills"
+    },
+    "/monthsConfig/{monthId}": {
+      "schema": "monthConfig",
+      "description": "Monthly opening balances and parameters"
+    },
+    "/adminHandoverLogs/{logId}": {
+      "schema": "adminHandoverLog",
+      "description": "Admin appointment and handover history logs"
+    }
+  }
+}

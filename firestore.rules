@@ -1,0 +1,131 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'digamber.gosain11@gmail.com' ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidUser(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.name is string && data.name.size() <= 100 &&
+             data.role in ['admin', 'user'] &&
+             data.flatNumber is string && data.flatNumber.size() <= 20 &&
+             data.mobile is string && data.mobile.size() <= 20 &&
+             data.email is string && data.email.size() <= 100;
+    }
+
+    function isValidExpense(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.monthYear is string && data.monthYear.size() <= 10 &&
+             data.title is string && data.title.size() <= 150 &&
+             data.category is string && data.category.size() <= 50 &&
+             data.amount is number && data.amount >= 0 &&
+             data.date is string && data.date.size() <= 30 &&
+             data.paidTo is string && data.paidTo.size() <= 100 &&
+             data.paymentMethod is string && data.paymentMethod.size() <= 30 &&
+             data.recordedBy is string && data.recordedBy.size() <= 100;
+    }
+
+    function isValidMaintenanceRecord(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.monthYear is string && data.monthYear.size() <= 10 &&
+             data.userId is string && data.userId.size() <= 128 &&
+             data.userName is string && data.userName.size() <= 100 &&
+             data.flatNumber is string && data.flatNumber.size() <= 20 &&
+             data.maintenanceDue is number && data.maintenanceDue >= 0 &&
+             data.maintenancePaid is number && data.maintenancePaid >= 0 &&
+             data.isPaid is bool &&
+             data.pendingAmount is number;
+    }
+
+    function isValidElectricityBill(data) {
+      return data.monthYear is string && data.monthYear.size() <= 10 &&
+             data.billAmount is number && data.billAmount >= 0 &&
+             data.consumerNumber is string && data.consumerNumber.size() <= 50 &&
+             data.billingPeriod is string && data.billingPeriod.size() <= 100 &&
+             data.unitsConsumed is number && data.unitsConsumed >= 0 &&
+             data.dueDate is string && data.dueDate.size() <= 30 &&
+             data.isPaid is bool;
+    }
+
+    function isValidMonthConfig(data) {
+      return data.monthYear is string && data.monthYear.size() <= 10 &&
+             data.monthName is string && data.monthName.size() <= 50 &&
+             data.standardMaintenanceAmount is number && data.standardMaintenanceAmount >= 0 &&
+             data.openingBalance is number;
+    }
+
+    function isValidAdminLog(data) {
+      return data.id is string && data.id.size() <= 128 &&
+             data.fromAdminName is string && data.fromAdminName.size() <= 100 &&
+             data.toAdminName is string && data.toAdminName.size() <= 100 &&
+             data.transferDate is string && data.transferDate.size() <= 30 &&
+             data.handoverTenureMonths is number;
+    }
+
+    // Default deny catch-all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update: if isValidUser(incoming());
+      allow delete: if isAdmin();
+    }
+
+    match /expenses/{expenseId} {
+      allow read: if true;
+      allow create, update: if isValidExpense(incoming());
+      allow delete: if true;
+    }
+
+    match /maintenanceRecords/{recordId} {
+      allow read: if true;
+      allow create, update: if isValidMaintenanceRecord(incoming());
+      allow delete: if true;
+    }
+
+    match /electricityBills/{billId} {
+      allow read: if true;
+      allow create, update: if isValidElectricityBill(incoming());
+      allow delete: if true;
+    }
+
+    match /monthsConfig/{monthId} {
+      allow read: if true;
+      allow create, update: if isValidMonthConfig(incoming());
+      allow delete: if true;
+    }
+
+    match /adminHandoverLogs/{logId} {
+      allow read: if true;
+      allow create, update: if isValidAdminLog(incoming());
+      allow delete: if true;
+    }
+
+    match /test/{docId} {
+      allow read, write: if true;
+    }
+  }
+}

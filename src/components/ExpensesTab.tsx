@@ -179,9 +179,9 @@ export const ExpensesTab: React.FC = () => {
             No expenses found for this selection.
           </div>
         ) : (
-          filteredExpenses.map((exp) => (
+          filteredExpenses.map((exp, idx) => (
             <div
-              key={exp.id}
+              key={`${exp.id || 'exp'}-${idx}`}
               className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition shadow-xs flex flex-col justify-between"
             >
               <div className="flex items-start justify-between gap-2">

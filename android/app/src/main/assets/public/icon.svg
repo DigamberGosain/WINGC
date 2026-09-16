@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="50%" stop-color="#1e293b" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399" />
+      <stop offset="100%" stop-color="#10b981" />
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#0284c7" />
+    </linearGradient>
+  </defs>
+  <!-- Background with Safe Margin for PWA Maskable / Adaptive icon -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)" />
+  
+  <!-- Subtle circular grid / radar ring -->
+  <circle cx="256" cy="256" r="190" fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="2" stroke-dasharray="6,6"/>
+  <circle cx="256" cy="256" r="150" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1.5" />
+
+  <!-- Apartment Tower Silhouette -->
+  <!-- Wing C Left Tower -->
+  <rect x="130" y="170" width="80" height="200" rx="8" fill="#334155" opacity="0.9"/>
+  <rect x="145" y="190" width="18" height="18" rx="3" fill="#64748b"/>
+  <rect x="175" y="190" width="18" height="18" rx="3" fill="#64748b"/>
+  <rect x="145" y="225" width="18" height="18" rx="3" fill="#64748b"/>
+  <rect x="175" y="225" width="18" height="18" rx="3" fill="#38bdf8"/>
+  <rect x="145" y="260" width="18" height="18" rx="3" fill="#64748b"/>
+  <rect x="175" y="260" width="18" height="18" rx="3" fill="#64748b"/>
+  <rect x="145" y="295" width="18" height="18" rx="3" fill="#38bdf8"/>
+  <rect x="175" y="295" width="18" height="18" rx="3" fill="#64748b"/>
+
+  <!-- Main Center Tower: Wing-C Lakeview -->
+  <rect x="200" y="110" width="112" height="260" rx="12" fill="#1e293b" stroke="url(#goldGrad)" stroke-width="3"/>
+  <!-- Windows -->
+  <rect x="220" y="135" width="28" height="22" rx="4" fill="#34d399"/>
+  <rect x="264" y="135" width="28" height="22" rx="4" fill="#34d399"/>
+  <rect x="220" y="175" width="28" height="22" rx="4" fill="#6ee7b7"/>
+  <rect x="264" y="175" width="28" height="22" rx="4" fill="#fbbf24"/>
+  <rect x="220" y="215" width="28" height="22" rx="4" fill="#38bdf8"/>
+  <rect x="264" y="215" width="28" height="22" rx="4" fill="#6ee7b7"/>
+  <rect x="220" y="255" width="28" height="22" rx="4" fill="#6ee7b7"/>
+  <rect x="264" y="255" width="28" height="22" rx="4" fill="#38bdf8"/>
+  <rect x="220" y="295" width="28" height="22" rx="4" fill="#34d399"/>
+  <rect x="264" y="295" width="28" height="22" rx="4" fill="#6ee7b7"/>
+  
+  <!-- Right Tower -->
+  <rect x="302" y="160" width="80" height="210" rx="8" fill="#334155" opacity="0.9"/>
+  <rect x="320" y="180" width="18" height="18" rx="3" fill="#64748b"/>
+  <rect x="350" y="180" width="18" height="18" rx="3" fill="#34d399"/>
+  <rect x="320" y="215" width="18" height="18" rx="3" fill="#64748b"/>
+  <rect x="350" y="215" width="18" height="18" rx="3" fill="#64748b"/>
+  <rect x="320" y="250" width="18" height="18" rx="3" fill="#38bdf8"/>
+  <rect x="350" y="250" width="18" height="18" rx="3" fill="#64748b"/>
+  <rect x="320" y="285" width="18" height="18" rx="3" fill="#64748b"/>
+  <rect x="350" y="285" width="18" height="18" rx="3" fill="#34d399"/>
+
+  <!-- Apartment Entrance Gate -->
+  <path d="M236 370 L236 335 Q256 320 276 335 L276 370 Z" fill="#34d399" opacity="0.9"/>
+
+  <!-- Lake Waves under the Towers (Lakeview motif) -->
+  <path d="M100 395 C150 385 200 405 256 395 C312 385 362 405 412 395" fill="none" stroke="#38bdf8" stroke-width="4" stroke-linecap="round"/>
+  <path d="M120 415 C165 405 210 425 256 415 C302 405 347 425 392 415" fill="none" stroke="#0284c7" stroke-width="3" stroke-linecap="round" opacity="0.7"/>
+
+  <!-- Badge Pill: "WING-C" -->
+  <rect x="186" y="58" width="140" height="38" rx="19" fill="#10b981" />
+  <text x="256" y="83" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="16" font-weight="900" fill="#0f172a" text-anchor="middle" letter-spacing="2">WING - C</text>
+  
+  <!-- Text Label -->
+  <text x="256" y="460" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="20" font-weight="700" fill="#f8fafc" text-anchor="middle" letter-spacing="1">LAKEVIEW APARTMENT</text>
+  <text x="256" y="482" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" font-size="12" font-weight="600" fill="#94a3b8" text-anchor="middle" letter-spacing="2">BURARI, DELHI</text>
+</svg>

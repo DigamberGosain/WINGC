@@ -236,87 +236,82 @@ bubblewrap build`;
         {/* Tab 2: Download APK */}
         {activeTab === 'apk' && (
           <div className="space-y-4 text-xs">
-            <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/40 to-slate-800/80 border border-emerald-500/40 space-y-3">
-              <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
-                <Sparkles className="w-4 h-4" />
-                <span>Generating the APK File</span>
+            {/* Direct 1-Click Download Card */}
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-emerald-950/60 to-slate-900 border border-emerald-500/50 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-emerald-300 font-bold text-sm">
+                  <Smartphone className="w-4 h-4 text-emerald-400" />
+                  <span>Native Android Project Package Ready!</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold">
+                  com.wingc.lakeview
+                </span>
               </div>
               <p className="text-slate-300 leading-relaxed">
-                PWABuilder is Microsoft's open-source tool that converts modern web applications into signed Android <code>.apk</code> and <code>.aab</code> packages.
+                We generated the complete native Android project (with <strong>Gradle wrapper, AndroidManifest, Java source, and assets</strong>) and packaged it into a ready-to-use zip archive.
               </p>
 
-              {/* Public URL Input for PWABuilder */}
-              <div className="p-3.5 rounded-xl bg-slate-900 border border-slate-700/80 space-y-2">
-                <label className="block text-slate-300 font-medium">
-                  Enter your Deployed Public URL (or keep staging link to test):
-                </label>
-                <div className="flex gap-2">
-                  <input
-                    type="url"
-                    value={customPublicUrl}
-                    onChange={(e) => setCustomPublicUrl(e.target.value)}
-                    placeholder={defaultStagingUrl}
-                    className="flex-1 bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white font-mono text-xs focus:ring-1 focus:ring-emerald-500"
-                  />
-                  {customPublicUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setCustomPublicUrl('')}
-                      className="px-3 py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-xs font-semibold text-slate-300"
-                    >
-                      Reset
-                    </button>
-                  )}
-                </div>
-                <p className="text-[10px] text-slate-400">
-                  Target: <span className="font-mono text-emerald-400">{activeUrl}</span>
+              {/* Direct Download Button */}
+              <a
+                href="/wing-c-lakeview-android-project.zip"
+                download="wing-c-lakeview-android-project.zip"
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg transition"
+              >
+                <FileDown className="w-4 h-4" />
+                <span>Download Android Project (ZIP) — 1-Click</span>
+                <Download className="w-3.5 h-3.5 opacity-70" />
+              </a>
+              <p className="text-[10px] text-slate-400 text-center">
+                Contains the full <code>/android</code> folder, source code, and Gradle wrapper ready for Android Studio.
+              </p>
+            </div>
+
+            {/* Method 1: Android Studio (Standard Way) */}
+            <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-700/80 space-y-2">
+              <div className="flex items-center justify-between text-white font-semibold">
+                <span className="flex items-center gap-1.5 text-emerald-300">
+                  <Package className="w-4 h-4" /> How to Build .APK with Android Studio
+                </span>
+                <span className="text-[10px] text-emerald-400 font-mono">Free</span>
+              </div>
+              <ol className="list-decimal list-inside text-slate-300 space-y-1.5 pl-0.5 leading-relaxed">
+                <li>
+                  Click the <strong>"Download Android Project (ZIP)"</strong> button above (or open the <strong>Settings (Gear icon ⚙️)</strong> in AI Studio's top right header &gt; <strong>Export as ZIP</strong>).
+                </li>
+                <li>Unzip the downloaded folder on your computer.</li>
+                <li>Open the free <strong>Android Studio</strong> app on your computer, click <strong>Open Project</strong>, and select the unzipped <code>android</code> folder.</li>
+                <li>Click <strong>Build &gt; Build Bundle(s) / APK(s) &gt; Build APK(s)</strong> in Android Studio's top menu bar.</li>
+                <li>Android Studio will compile your standalone <code>app-debug.apk</code> file in seconds!</li>
+              </ol>
+            </div>
+
+            {/* Method 2: Cloud GitHub Actions (Zero Software Setup) */}
+            <div className="p-3.5 rounded-xl bg-slate-900/90 border border-slate-700/80 space-y-2">
+              <div className="flex items-center justify-between text-white font-semibold">
+                <span className="flex items-center gap-1.5 text-sky-300">
+                  <Terminal className="w-4 h-4" /> Alternative: Cloud Build via GitHub Actions
+                </span>
+                <span className="text-[10px] text-sky-400 font-mono">Automated</span>
+              </div>
+              <p className="text-slate-300 leading-relaxed">
+                We also included an automated workflow file (<code>.github/workflows/build-apk.yml</code>):
+              </p>
+              <ol className="list-decimal list-inside text-slate-300 space-y-1 pl-0.5 leading-relaxed">
+                <li>In AI Studio, click the <strong>Settings (Gear icon ⚙️)</strong> in the top-right &gt; <strong>Export to GitHub</strong>.</li>
+                <li>Go to your repository on GitHub and click the <strong>Actions</strong> tab.</li>
+                <li>Watch the "Build Android APK" workflow run (~2 minutes).</li>
+                <li>Click the completed run and download <code>Wing-C-Lakeview-Debug-APK</code> directly to your phone!</li>
+              </ol>
+            </div>
+
+              {/* Method 3: PWABuilder Web Packaging */}
+              <div className="p-3.5 rounded-xl bg-slate-800/60 border border-slate-700/60 space-y-2">
+                <span className="font-semibold text-white block">Method 3: Online APK Converter (PWABuilder)</span>
+                <p className="text-slate-400 leading-relaxed">
+                  If you host the app for free on Netlify (Option 2 in the Deploy tab), you can paste your free Netlify URL into <a href="https://www.pwabuilder.com" target="_blank" rel="noreferrer" className="text-emerald-400 underline font-semibold">PWABuilder.com</a> and click "Package for Android" to download an APK without opening Android Studio.
                 </p>
               </div>
-
-              <div className="p-3 rounded-xl bg-slate-900/90 border border-slate-700/80 space-y-1.5">
-                <span className="font-semibold text-white block">Steps to download:</span>
-                <ol className="list-decimal list-inside text-slate-300 space-y-1 pl-1 leading-relaxed">
-                  <li>Deploy the app to get a public URL, then paste it above (or use directly).</li>
-                  <li>Click the button below to launch PWABuilder.</li>
-                  <li>Click <strong>"Package for Android"</strong> &gt; Choose <strong>"Testing APK"</strong>.</li>
-                  <li>Save the <code>.apk</code> file to your phone and tap to test!</li>
-                </ol>
-              </div>
-
-              <div className="pt-1">
-                <a
-                  href={pwaBuilderUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition"
-                >
-                  <FileDown className="w-4 h-4" />
-                  <span>Open PWABuilder with Active URL</span>
-                  <ExternalLink className="w-3.5 h-3.5" />
-                </a>
-              </div>
             </div>
-
-            {/* Offline CLI Option */}
-            <div className="p-3.5 rounded-2xl bg-slate-800/60 border border-slate-700/60 space-y-2">
-              <div className="flex items-center justify-between text-[11px] text-slate-300">
-                <span className="font-semibold text-white flex items-center gap-1.5">
-                  <Terminal className="w-3.5 h-3.5 text-emerald-400" /> CLI Option: Bubblewrap (Official Google TWA)
-                </span>
-                <button
-                  type="button"
-                  onClick={() => copyToClipboard(bubblewrapCmd, 'cmd', 'bubblewrap')}
-                  className="flex items-center gap-1 text-emerald-400 hover:text-emerald-300"
-                >
-                  {copiedCmd === 'bubblewrap' ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-                  <span>{copiedCmd === 'bubblewrap' ? 'Copied' : 'Copy'}</span>
-                </button>
-              </div>
-              <pre className="p-2.5 rounded-xl bg-slate-950 font-mono text-[11px] text-emerald-300 overflow-x-auto">
-                {bubblewrapCmd}
-              </pre>
-            </div>
-          </div>
         )}
 
         {/* Tab 3: Phone Test */}

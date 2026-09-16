@@ -5,6 +5,8 @@
 
 export type UserRole = 'admin' | 'user';
 
+export type OccupancyType = 'owner' | 'tenant';
+
 export interface User {
   id: string;
   role: UserRole;
@@ -13,6 +15,9 @@ export interface User {
   mobile: string;     // 10-digit Indian phone number
   email: string;
   password?: string;
+  occupancyType?: OccupancyType; // 'owner' or 'tenant'
+  ownerName?: string;            // If rented: owner/landlord name
+  ownerContact?: string;         // If rented: owner/landlord 10-digit mobile
   twoWheelerNumber?: string; // e.g. "DL 01 AB 1234"
   carNumber?: string;        // e.g. "DL 08 CD 5678"
   registeredAt: string;
@@ -55,7 +60,8 @@ export interface MaintenanceRecord {
   maintenancePaid: number;
   isPaid: boolean;
   paidDate?: string;
-  paymentMethod?: 'UPI' | 'Cash' | 'Bank Transfer' | 'Cheque';
+  markedDate?: string; // Date admin recorded the entry in the system
+  paymentMethod?: 'Cash' | 'Online' | 'UPI' | 'Bank Transfer' | 'Cheque';
   transactionRef?: string;
   pendingAmount: number; // arrears/pending carried forward from previous periods
   notes?: string;

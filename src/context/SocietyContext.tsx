@@ -27,6 +27,7 @@ interface SocietyContextType {
   logout: () => void;
   registerUser: (userData: Omit<User, 'id' | 'registeredAt'>) => { success: boolean; message: string };
   updateProfile: (updated: Partial<User>) => void;
+  deleteUser: (userId: string) => { success: boolean; message: string };
   
   // Admin single-person & handover management
   currentAdmin: User | null;
@@ -36,6 +37,8 @@ interface SocietyContextType {
   // Month selector & configuration
   selectedMonth: string; // "YYYY-MM"
   setSelectedMonth: (month: string) => void;
+  activeRunningMonth: string;
+  isRunningMonth: boolean;
   availableMonths: string[];
   currentMonthConfig: MonthConfig;
   updateMonthConfig: (updates: Partial<MonthConfig>) => void;
@@ -54,6 +57,7 @@ interface SocietyContextType {
   maintenanceRecords: MaintenanceRecord[];
   markMaintenanceStatus: (recordId: string, isPaid: boolean, details?: Partial<MaintenanceRecord>) => void;
   updatePendingAmount: (recordId: string, newPendingAmount: number) => void;
+  updateFlatRateAndArrears: (flatNumber: string, monthlyRate: number, arrears: number) => { success: boolean; message: string };
   paidMembersCount: number;
   unpaidMembersCount: number;
   totalMembersCount: number;
@@ -72,6 +76,39 @@ interface SocietyContextType {
 }
 
 const STORAGE_PREFIX = 'wing_c_lakeview_v1_';
+
+// Helper to ensure expenses have guaranteed unique IDs and exact duplicates are purged
+const ensureUniqueExpenses = (list: ExpenseItem[]): ExpenseItem[] => {
+  if (!Array.isArray(list)) return [];
+  const seenIds = new Set<string>();
+  const uniqueList: ExpenseItem[] = [];
+
+  for (const item of list) {
+    if (!item) continue;
+    let itemId = item.id || `exp-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+
+    if (seenIds.has(itemId)) {
+      // Check if it's an exact duplicate (e.g. from StrictMode double call)
+      const isExactDuplicate = uniqueList.some(
+        existing =>
+          existing.monthYear === item.monthYear &&
+          existing.title === item.title &&
+          existing.amount === item.amount &&
+          existing.category === item.category
+      );
+      if (isExactDuplicate) {
+        continue; // Skip exact duplicate
+      }
+      // If different record with collided ID, reassign a unique ID
+      itemId = `exp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+    }
+
+    seenIds.add(itemId);
+    uniqueList.push({ ...item, id: itemId });
+  }
+
+  return uniqueList;
+};
 
 const SocietyContext = createContext<SocietyContextType | undefined>(undefined);
 
@@ -113,13 +150,18 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return { [INITIAL_MONTH_KEY]: INITIAL_ELECTRICITY_BILL };
   });
 
-  // 6. Expenses list
+  // 6. Expenses list (Sanitized on load to eliminate any prior duplicate keys)
   const [expenses, setExpenses] = useState<ExpenseItem[]>(() => {
     const saved = localStorage.getItem(`${STORAGE_PREFIX}expenses`);
     if (saved) {
-      try { return JSON.parse(saved); } catch { /* ignore */ }
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return ensureUniqueExpenses(parsed);
+        }
+      } catch { /* ignore */ }
     }
-    return INITIAL_EXPENSES;
+    return ensureUniqueExpenses(INITIAL_EXPENSES);
   });
 
   // 7. Maintenance records per month
@@ -166,6 +208,11 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
   }, [electricityBills]);
 
   useEffect(() => {
+    const cleaned = ensureUniqueExpenses(expenses);
+    if (cleaned.length !== expenses.length || cleaned.some((e, i) => e.id !== expenses[i]?.id)) {
+      setExpenses(cleaned);
+      return;
+    }
     localStorage.setItem(`${STORAGE_PREFIX}expenses`, JSON.stringify(expenses));
   }, [expenses]);
 
@@ -264,6 +311,10 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return openingBalance + totalMaintenanceReceived - totalExpenses;
   }, [openingBalance, totalMaintenanceReceived, totalExpenses]);
 
+  // Active Running Month definition (Current ongoing month)
+  const ACTIVE_RUNNING_MONTH = '2026-09';
+  const isRunningMonth = selectedMonth === ACTIVE_RUNNING_MONTH;
+
   // Paid / Unpaid counters
   const totalMembersCount = maintenanceRecords.length;
   const paidMembersCount = maintenanceRecords.filter(r => r.isPaid).length;
@@ -274,15 +325,12 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return maintenanceRecords.filter(r => !r.isPaid);
   }, [maintenanceRecords]);
 
-  // Available months list
+  // Available months list - reports starting from first use of app
   const availableMonths = useMemo(() => {
-    const set = new Set<string>([INITIAL_MONTH_KEY]);
+    const set = new Set<string>([INITIAL_MONTH_KEY, '2026-08', '2026-09']);
     Object.keys(monthsConfig).forEach(m => set.add(m));
     Object.keys(maintenanceRecordsMap).forEach(m => set.add(m));
     expenses.forEach(e => set.add(e.monthYear));
-    // Also include previous month and next month
-    set.add('2026-08');
-    set.add('2026-10');
     return Array.from(set).sort().reverse();
   }, [monthsConfig, maintenanceRecordsMap, expenses]);
 
@@ -343,8 +391,11 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     const newUser: User = {
       ...userData,
-      id: `user-${Date.now()}`,
+      id: `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       flatNumber: userData.flatNumber.trim().toUpperCase(),
+      occupancyType: userData.occupancyType || 'owner',
+      ownerName: userData.occupancyType === 'tenant' ? userData.ownerName?.trim() : undefined,
+      ownerContact: userData.occupancyType === 'tenant' ? userData.ownerContact?.trim() : undefined,
       registeredAt: new Date().toISOString().split('T')[0],
       adminAppointedDate: userData.role === 'admin' ? new Date().toISOString().split('T')[0] : undefined,
       adminTenureMonths: userData.role === 'admin' ? 12 : undefined,
@@ -377,6 +428,64 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return { success: true, message: `Account created successfully! Logged in as ${newUser.name}.` };
   };
 
+  // Remove / Delete user (e.g. tenant vacated or member moved out)
+  const deleteUser = (userId: string) => {
+    const target = users.find(u => u.id === userId);
+    if (!target) {
+      return { success: false, message: 'User not found in society records.' };
+    }
+    if (target.role === 'admin') {
+      return { 
+        success: false, 
+        message: 'Cannot remove the active Admin. Please transfer Admin responsibilities to another resident first.' 
+      };
+    }
+
+    // Remove user
+    setUsers(prev => prev.filter(u => u.id !== userId));
+
+    // Remove or detach their record from maintenance records
+    setMaintenanceRecordsMap(prev => {
+      const updatedMap: Record<string, MaintenanceRecord[]> = {};
+      Object.keys(prev).forEach(m => {
+        updatedMap[m] = prev[m].filter(r => r.userId !== userId && r.flatNumber !== target.flatNumber);
+      });
+      return updatedMap;
+    });
+
+    if (currentUserId === userId) {
+      setCurrentUserId(null);
+    }
+
+    return { 
+      success: true, 
+      message: `Resident ${target.name} (Flat ${target.flatNumber}) removed from Wing-C society records.` 
+    };
+  };
+
+  // Update flat maintenance rate and opening arrears
+  const updateFlatRateAndArrears = (flatNumber: string, monthlyRate: number, arrears: number) => {
+    setMaintenanceRecordsMap(prev => {
+      const list = prev[selectedMonth] || maintenanceRecords;
+      const targetNormalized = flatNumber.trim().toUpperCase();
+      const updated = list.map(r => {
+        if (r.flatNumber.toUpperCase() === targetNormalized) {
+          return {
+            ...r,
+            maintenanceDue: monthlyRate,
+            pendingAmount: Math.max(0, arrears),
+          };
+        }
+        return r;
+      });
+      return {
+        ...prev,
+        [selectedMonth]: updated,
+      };
+    });
+    return { success: true, message: `Updated rate and arrears for Flat ${flatNumber.toUpperCase()}` };
+  };
+
   // Update profile / vehicle info
   const updateProfile = (updated: Partial<User>) => {
     if (!currentUser) return;
@@ -398,7 +507,7 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     // Log the transfer
     const newLog: AdminHandoverLog = {
-      id: `log-${Date.now()}`,
+      id: `log-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       fromAdminName: currentUser.name,
       fromAdminFlat: currentUser.flatNumber,
       toAdminName: targetUser.name,
@@ -461,61 +570,63 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
   // Update Electricity Bill
   const updateElectricityBill = (updates: Partial<ElectricityBill>) => {
-    setElectricityBills(prev => {
-      const current = prev[selectedMonth] || electricityBill;
-      const updated = {
-        ...current,
-        ...updates,
-        updatedBy: currentUser ? `${currentUser.name} (${currentUser.role})` : current.updatedBy,
-      };
+    const current = electricityBills[selectedMonth] || electricityBill;
+    const updated = {
+      ...current,
+      ...updates,
+      updatedBy: currentUser ? `${currentUser.name} (${currentUser.role})` : current.updatedBy,
+    };
 
-      // If marked as paid, automatically add or link to expenses if not already present
-      if (updates.isPaid && !current.isPaid) {
-        const billAmount = updates.billAmount ?? current.billAmount;
-        if (billAmount > 0) {
-          const expTitle = `Electricity Bill (${current.consumerNumber})`;
-          const exists = expenses.some(e => e.monthYear === selectedMonth && e.category === 'Electricity');
-          if (!exists) {
-            setExpenses(expList => [
-              {
-                id: `exp-${Date.now()}`,
-                monthYear: selectedMonth,
-                title: expTitle,
-                category: 'Electricity',
-                amount: billAmount,
-                date: updates.paidDate || new Date().toISOString().split('T')[0],
-                paidTo: 'TPDDL (Tata Power Delhi)',
-                paymentMethod: 'UPI',
-                receiptNote: updates.paymentRef || 'Paid via online bill portal',
-                recordedBy: currentUser?.name || 'Admin',
-              },
-              ...expList,
-            ]);
-          }
-        }
+    setElectricityBills(prev => ({
+      ...prev,
+      [selectedMonth]: updated,
+    }));
+
+    // If marked as paid, automatically add or link to expenses if not already present
+    if (updates.isPaid && !current.isPaid) {
+      const billAmount = updates.billAmount ?? current.billAmount;
+      if (billAmount > 0) {
+        const expTitle = `Electricity Bill (${current.consumerNumber})`;
+        setExpenses(expList => {
+          const exists = expList.some(e => e.monthYear === selectedMonth && e.category === 'Electricity');
+          if (exists) return expList;
+          const newExp: ExpenseItem = {
+            id: `exp-elec-${selectedMonth}-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
+            monthYear: selectedMonth,
+            title: expTitle,
+            category: 'Electricity',
+            amount: billAmount,
+            date: updates.paidDate || new Date().toISOString().split('T')[0],
+            paidTo: 'TPDDL (Tata Power Delhi)',
+            paymentMethod: 'UPI',
+            receiptNote: updates.paymentRef || 'Paid via online bill portal',
+            recordedBy: currentUser?.name || 'Admin',
+          };
+          return ensureUniqueExpenses([newExp, ...expList]);
+        });
       }
-
-      return {
-        ...prev,
-        [selectedMonth]: updated,
-      };
-    });
+    }
   };
 
   // Mark Maintenance Payment Status (Admin action)
   const markMaintenanceStatus = (recordId: string, isPaid: boolean, details?: Partial<MaintenanceRecord>) => {
     setMaintenanceRecordsMap(prev => {
       const list = prev[selectedMonth] || maintenanceRecords;
+      const todayDate = new Date().toISOString().split('T')[0];
       const updated = list.map(r => {
         if (r.id === recordId) {
           const paidAmount = isPaid ? (details?.maintenancePaid ?? r.maintenanceDue) : 0;
+          const method = details?.paymentMethod || 'Online';
           return {
             ...r,
             isPaid,
             maintenancePaid: paidAmount,
-            paidDate: isPaid ? (details?.paidDate || new Date().toISOString().split('T')[0]) : undefined,
-            paymentMethod: isPaid ? (details?.paymentMethod || 'UPI') : undefined,
-            transactionRef: isPaid ? (details?.transactionRef || `TRX-${Date.now().toString().slice(-6)}`) : undefined,
+            paidDate: isPaid ? (details?.paidDate || todayDate) : undefined,
+            markedDate: isPaid ? (details?.markedDate || todayDate) : undefined,
+            paymentMethod: isPaid ? method : undefined,
+            transactionRef: isPaid 
+              ? (details?.transactionRef || (method === 'Cash' ? 'Cash in Hand (Paid to Admin)' : `ONLINE-${Date.now().toString().slice(-6)}`))
+              : undefined,
             notes: details?.notes !== undefined ? details.notes : r.notes,
           };
         }
@@ -552,10 +663,10 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const addExpense = (newExp: Omit<ExpenseItem, 'id' | 'recordedBy'>) => {
     const item: ExpenseItem = {
       ...newExp,
-      id: `exp-${Date.now()}`,
+      id: `exp-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`,
       recordedBy: currentUser ? `${currentUser.name} (${currentUser.role})` : 'Admin',
     };
-    setExpenses(prev => [item, ...prev]);
+    setExpenses(prev => ensureUniqueExpenses([item, ...prev]));
   };
 
   // Delete Expense Item
@@ -586,11 +697,14 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         logout,
         registerUser,
         updateProfile,
+        deleteUser,
         currentAdmin,
         transferAdminRole,
         adminHandoverLogs,
         selectedMonth,
         setSelectedMonth,
+        activeRunningMonth: ACTIVE_RUNNING_MONTH,
+        isRunningMonth,
         availableMonths,
         currentMonthConfig,
         updateMonthConfig,
@@ -603,6 +717,7 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         maintenanceRecords,
         markMaintenanceStatus,
         updatePendingAmount,
+        updateFlatRateAndArrears,
         paidMembersCount,
         unpaidMembersCount,
         totalMembersCount,

@@ -21,10 +21,10 @@ export const PWAInstallButton: React.FC = () => {
       <button
         onClick={install}
         id="btn-pwa-install"
-        className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm hover:bg-emerald-500 transition"
+        className="flex items-center gap-1 rounded-lg bg-emerald-600 px-2 sm:px-2.5 py-1 sm:py-1.5 text-xs font-semibold text-white shadow-xs hover:bg-emerald-500 transition"
       >
         <Smartphone className="w-3.5 h-3.5" />
-        Install Android App
+        <span className="hidden xs:inline">Install</span>
       </button>
     );
   }

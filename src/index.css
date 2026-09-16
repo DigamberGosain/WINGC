@@ -1,1 +1,37 @@
 @import "tailwindcss";
+
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+#root {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+/* Android & Mobile System Bars Spacing:
+   - Top safe area prevents Android Signal/Battery/Clock status bar from overlapping header.
+   - Bottom safe area prevents Android Back/Home/Recent keys or gesture bar from overlapping bottom tabs.
+*/
+.safe-area-top {
+  padding-top: max(0.85rem, env(safe-area-inset-top, 0.85rem));
+}
+
+.safe-area-bottom {
+  padding-bottom: max(1.5rem, env(safe-area-inset-bottom, 1.5rem));
+}

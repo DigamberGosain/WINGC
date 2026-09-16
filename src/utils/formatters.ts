@@ -60,15 +60,40 @@ export function getMonthDisplayName(monthKey: string): string {
   }
 }
 
-// Export array to CSV download
-export function downloadCSV(filename: string, rows: (string | number)[][]) {
-  const csvContent = 'data:text/csv;charset=utf-8,' + 
-    rows.map(e => e.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(',')).join('\n');
-  const encodedUri = encodeURI(csvContent);
-  const link = document.createElement('a');
-  link.setAttribute('href', encodedUri);
-  link.setAttribute('download', filename);
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
+// Flat number series comparator (e.g., C-101, C-102, C-201, C-202 ...)
+export function compareFlatNumbers(flatA: string, flatB: string): number {
+  const numA = parseInt(flatA.replace(/\D/g, ''), 10) || 0;
+  const numB = parseInt(flatB.replace(/\D/g, ''), 10) || 0;
+  if (numA !== numB) return numA - numB;
+  return flatA.localeCompare(flatB);
+}
+
+// Export array to CSV download using Blob and UTF-8 BOM
+export function downloadCSV(filename: string, rows: (string | number)[][]): boolean {
+  try {
+    const csvString = rows
+      .map(row => row.map(cell => {
+        const val = cell === null || cell === undefined ? '' : String(cell);
+        return `"${val.replace(/"/g, '""')}"`;
+      }).join(','))
+      .join('\r\n');
+
+    // Add \uFEFF BOM for Excel compatibility with Rupee symbol and Indian formatting
+    const blob = new Blob(['\uFEFF' + csvString], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 1000);
+    return true;
+  } catch (err) {
+    console.error('Failed to download CSV:', err);
+    return false;
+  }
 }

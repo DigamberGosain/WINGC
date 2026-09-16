@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
 import { useSociety } from '../context/SocietyContext';
-import { formatINR, getMonthDisplayName, downloadCSV } from '../utils/formatters';
-import { MaintenanceRecord } from '../types';
+import { formatINR, getMonthDisplayName, downloadCSV, compareFlatNumbers } from '../utils/formatters';
+import { generateMonthlyReportPDF } from '../utils/pdfGenerator';
+import { MaintenanceRecord, User } from '../types';
+import { MonthlyReportModal } from './MonthlyReportModal';
+import { SetupRatesAndArrearsModal } from './SetupRatesAndArrearsModal';
 import {
   FileSpreadsheet,
   CheckCircle2,
@@ -11,13 +14,20 @@ import {
   CreditCard,
   Edit2,
   FileDown,
+  FileText,
   Receipt,
   Settings,
   AlertCircle,
   X,
   Phone,
   Check,
-  Building
+  Building,
+  Sliders,
+  UserMinus,
+  Trash2,
+  MessageSquare,
+  Copy,
+  Send
 } from 'lucide-react';
 
 interface MaintenanceTabProps {
@@ -32,6 +42,8 @@ export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
   const {
     selectedMonth,
     maintenanceRecords,
+    allUsers,
+    deleteUser,
     markMaintenanceStatus,
     updatePendingAmount,
     currentMonthConfig,
@@ -42,16 +54,26 @@ export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
     unpaidMembersCount,
     totalMembersCount,
     totalMaintenanceReceived,
+    totalExpenses,
+    expenses,
+    openingBalance,
+    cashInHand,
+    electricityBill,
   } = useSociety();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'paid' | 'unpaid'>('all');
 
   // Modals state
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [showRatesModal, setShowRatesModal] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+
   const [editingRecord, setEditingRecord] = useState<MaintenanceRecord | null>(null);
   const [payAmount, setPayAmount] = useState<number>(2000);
-  const [payMethod, setPayMethod] = useState<'UPI' | 'Cash' | 'Bank Transfer' | 'Cheque'>('UPI');
+  const [payMethod, setPayMethod] = useState<'Online' | 'Cash' | 'UPI' | 'Bank Transfer' | 'Cheque'>('Online');
   const [payDate, setPayDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [payMarkedDate, setPayMarkedDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [payRef, setPayRef] = useState<string>('');
   const [payNotes, setPayNotes] = useState<string>('');
 
@@ -65,6 +87,36 @@ export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
 
   // Receipt Modal
   const [receiptRecord, setReceiptRecord] = useState<MaintenanceRecord | null>(null);
+
+  // WhatsApp & SMS reminder copy state
+  const [copiedReminderId, setCopiedReminderId] = useState<string | null>(null);
+
+  // Polite reminder message generator with Cash & UPI payment options
+  const getReminderMessage = (record: MaintenanceRecord) => {
+    const totalDue = record.maintenanceDue + (record.pendingAmount || 0);
+    const breakdown = record.pendingAmount > 0 
+      ? ` (Monthly: ₹${record.maintenanceDue.toLocaleString('en-IN')} + Previous Arrears: ₹${record.pendingAmount.toLocaleString('en-IN')})` 
+      : '';
+    return `Dear ${record.userName} ji (${record.flatNumber}),
+
+Polite reminder regarding Wing-C Lakeview Apartment maintenance for ${getMonthDisplayName(selectedMonth)}.
+
+• Total Due: ₹${totalDue.toLocaleString('en-IN')}${breakdown}
+
+Accepted Payment Modes:
+💵 1. Cash: Submit cash directly to the Society Treasurer / Admin
+📱 2. UPI / Online: Transfer via UPI / Net Banking to Society Admin
+
+Kindly inform or share receipt/screenshot once payment is done. Thank you!
+- Wing-C Society Management`;
+  };
+
+  const handleCopyReminder = (record: MaintenanceRecord) => {
+    const msg = getReminderMessage(record);
+    navigator.clipboard.writeText(msg);
+    setCopiedReminderId(record.id);
+    setTimeout(() => setCopiedReminderId(null), 2500);
+  };
 
   // Handle external trigger from dashboard (if any)
   React.useEffect(() => {
@@ -81,9 +133,10 @@ export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
   const openMarkPaidModal = (record: MaintenanceRecord) => {
     setEditingRecord(record);
     setPayAmount(record.maintenanceDue);
-    setPayMethod(record.paymentMethod || 'UPI');
+    setPayMethod(record.paymentMethod || 'Online');
     setPayDate(record.paidDate || new Date().toISOString().split('T')[0]);
-    setPayRef(record.transactionRef || `UPI-${Date.now().toString().slice(-6)}`);
+    setPayMarkedDate(record.markedDate || new Date().toISOString().split('T')[0]);
+    setPayRef(record.transactionRef || (record.paymentMethod === 'Cash' ? 'Cash Received' : `UPI-${Date.now().toString().slice(-6)}`));
     setPayNotes(record.notes || '');
   };
 
@@ -95,6 +148,7 @@ export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
       maintenancePaid: payAmount,
       paymentMethod: payMethod,
       paidDate: payDate,
+      markedDate: payMarkedDate,
       transactionRef: payRef,
       notes: payNotes,
     });
@@ -134,75 +188,108 @@ export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
     return matchesSearch;
   });
 
-  // Download Report
+  // Download Report - opens detailed comprehensive modal
   const handleDownloadReport = () => {
-    const filename = `WingC_Lakeview_Maintenance_${selectedMonth}.csv`;
-    const rows = [
-      ['Wing-C Lakeview Apartment, Burari, Delhi'],
-      [`Maintenance Collection Ledger - ${getMonthDisplayName(selectedMonth)}`],
-      [],
-      ['Flat No.', 'Resident Name', 'Phone', 'Amount Due (₹)', 'Amount Paid (₹)', 'Pending / Arrears (₹)', 'Payment Status', 'Paid Date', 'Payment Mode', 'Txn Ref', 'Notes'],
-      ...maintenanceRecords.map(r => [
-        r.flatNumber,
-        r.userName,
-        r.phone,
-        r.maintenanceDue,
-        r.isPaid ? r.maintenancePaid : 0,
-        r.pendingAmount,
-        r.isPaid ? 'PAID' : 'PENDING',
-        r.paidDate || '-',
-        r.paymentMethod || '-',
-        r.transactionRef || '-',
-        r.notes || '',
-      ]),
-      [],
-      ['Total Collected', totalMaintenanceReceived],
-      ['Paid Flats', paidMembersCount],
-      ['Pending Flats', unpaidMembersCount],
-    ];
-    downloadCSV(filename, rows);
+    setShowReportModal(true);
+  };
+
+  // Direct PDF Download
+  const handleDownloadPDF = () => {
+    const sortedRecords = [...maintenanceRecords].sort((a, b) => 
+      compareFlatNumbers(a.flatNumber, b.flatNumber)
+    );
+    const cashCollected = sortedRecords
+      .filter(r => r.isPaid && r.paymentMethod === 'Cash')
+      .reduce((sum, r) => sum + r.maintenancePaid, 0);
+    const onlineCollected = sortedRecords
+      .filter(r => r.isPaid && r.paymentMethod !== 'Cash')
+      .reduce((sum, r) => sum + r.maintenancePaid, 0);
+
+    generateMonthlyReportPDF({
+      selectedMonth,
+      sortedRecords,
+      allUsers,
+      expenses,
+      openingBalance,
+      totalMaintenanceReceived,
+      cashCollected,
+      onlineCollected,
+      totalExpenses,
+      cashInHand,
+      paidMembersCount,
+      unpaidMembersCount,
+      totalMembersCount,
+      electricityBill,
+    });
   };
 
   return (
     <div className="space-y-4 pb-20 pt-1">
       {/* Header & Stats Banner */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-md">
-        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-          <div>
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
-              <FileSpreadsheet className="w-5 h-5 text-emerald-400" />
-              <span>Maintenance Received Ledger</span>
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-3 sm:p-4 shadow-md">
+        <div className="flex flex-wrap items-center justify-between gap-2.5 mb-3">
+          <div className="min-w-0">
+            <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
+              <FileSpreadsheet className="w-5 h-5 text-emerald-400 shrink-0" />
+              <span className="truncate">Maintenance Received Ledger</span>
             </h2>
-            <p className="text-xs text-slate-400">
+            <p className="text-[11px] sm:text-xs text-slate-400">
               {getMonthDisplayName(selectedMonth)} • Society member collections & arrears
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
             {isAdmin && (
-              <button
-                type="button"
-                id="btn-set-maintenance-rate"
-                onClick={() => {
-                  setNewStandardAmount(currentMonthConfig.standardMaintenanceAmount);
-                  setShowConfigModal(true);
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 transition"
-                title="Change standard maintenance amount for this month"
-              >
-                <Settings className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Rate: {formatINR(currentMonthConfig.standardMaintenanceAmount)}</span>
-              </button>
+              <>
+                <button
+                  type="button"
+                  id="btn-setup-rates-arrears-maint"
+                  onClick={() => setShowRatesModal(true)}
+                  className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 transition"
+                  title="Configure maintenance rates & starting arrears for all flats"
+                >
+                  <Sliders className="w-3.5 h-3.5 text-emerald-400" />
+                  <span className="hidden xs:inline">Rates & Arrears</span>
+                  <span className="xs:hidden">Rates</span>
+                </button>
+
+                <button
+                  type="button"
+                  id="btn-set-maintenance-rate"
+                  onClick={() => {
+                    setNewStandardAmount(currentMonthConfig.standardMaintenanceAmount);
+                    setShowConfigModal(true);
+                  }}
+                  className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 transition"
+                  title="Change standard maintenance amount for this month"
+                >
+                  <Settings className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Rate: {formatINR(currentMonthConfig.standardMaintenanceAmount)}</span>
+                </button>
+              </>
             )}
+
+            {/* Direct PDF Download Button */}
+            <button
+              type="button"
+              id="btn-maint-download-pdf"
+              onClick={handleDownloadPDF}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white shadow-md transition"
+              title="Download official PDF Monthly Report"
+            >
+              <FileDown className="w-3.5 h-3.5" />
+              <span>Download PDF</span>
+            </button>
 
             <button
               type="button"
+              id="btn-maint-download-report"
               onClick={handleDownloadReport}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white shadow-sm transition"
-              title="Download detailed CSV report of all members"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 transition"
+              title="View full society report and ledger"
             >
-              <FileDown className="w-3.5 h-3.5" />
-              <span>Download Report</span>
+              <FileText className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Full Report</span>
             </button>
           </div>
         </div>
@@ -282,13 +369,13 @@ export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
             No maintenance records match your search criteria.
           </div>
         ) : (
-          filteredRecords.map((record) => {
+          filteredRecords.map((record, index) => {
             const isMyFlat = currentUser && currentUser.flatNumber === record.flatNumber;
             const totalPayable = record.maintenanceDue + record.pendingAmount;
 
             return (
               <div
-                key={record.id}
+                key={`${record.id || record.flatNumber}-${index}`}
                 className={`p-3.5 rounded-2xl border transition shadow-xs ${
                   isMyFlat
                     ? 'bg-slate-800/90 border-emerald-500/60'
@@ -296,7 +383,7 @@ export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-2.5 min-w-0">
+                  <div className="flex items-start gap-2.5 min-w-0">
                     <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 ${
                       record.isPaid
                         ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30'
@@ -306,7 +393,7 @@ export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
                     </div>
 
                     <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <h4 className="text-xs sm:text-sm font-semibold text-white truncate">
                           {record.userName}
                         </h4>
@@ -315,10 +402,34 @@ export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
                             Your Flat
                           </span>
                         )}
+                        {(() => {
+                          const u = allUsers.find(usr => usr.flatNumber.toUpperCase() === record.flatNumber.toUpperCase());
+                          if (!u) return null;
+                          return u.occupancyType === 'tenant' ? (
+                            <span className="px-1.5 py-0.2 rounded text-[10px] bg-amber-500/15 text-amber-400 font-medium">
+                              Rented
+                            </span>
+                          ) : (
+                            <span className="px-1.5 py-0.2 rounded text-[10px] bg-slate-800 text-slate-300 font-medium">
+                              Owned
+                            </span>
+                          );
+                        })()}
                       </div>
-                      <p className="text-[11px] text-slate-400 flex items-center gap-1 truncate">
+                      <p className="text-[11px] text-slate-400 flex items-center gap-1 truncate mt-0.5">
                         <Phone className="w-3 h-3" /> {record.phone}
                       </p>
+                      {(() => {
+                        const u = allUsers.find(usr => usr.flatNumber.toUpperCase() === record.flatNumber.toUpperCase());
+                        if (u?.occupancyType === 'tenant' && u.ownerName) {
+                          return (
+                            <p className="text-[10px] text-amber-300/80 truncate mt-0.5">
+                              Owner: {u.ownerName} {u.ownerContact ? `(${u.ownerContact})` : ''}
+                            </p>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   </div>
 
@@ -326,12 +437,24 @@ export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
                   <div className="text-right shrink-0">
                     {record.isPaid ? (
                       <div>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
-                          <CheckCircle2 className="w-3 h-3" /> Paid {formatINR(record.maintenancePaid)}
-                        </span>
-                        <span className="block text-[10px] text-slate-400 mt-0.5">
-                          {record.paidDate} • {record.paymentMethod || 'UPI'}
-                        </span>
+                        <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/15 text-emerald-400 border border-emerald-500/30">
+                            <CheckCircle2 className="w-3 h-3" /> Paid {formatINR(record.maintenancePaid)}
+                          </span>
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${
+                            record.paymentMethod === 'Cash'
+                              ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                              : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
+                          }`}>
+                            {record.paymentMethod === 'Cash' ? '💵 Cash' : '🌐 Online'}
+                          </span>
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-1 space-y-0.5 text-right">
+                          <div>Paid: <strong className="text-slate-200">{record.paidDate}</strong></div>
+                          {record.markedDate && (
+                            <div>Entry: <span className="text-slate-300">{record.markedDate}</span></div>
+                          )}
+                        </div>
                       </div>
                     ) : (
                       <div>
@@ -385,6 +508,62 @@ export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
                   {/* Admin controls */}
                   {isAdmin && (
                     <div className="flex items-center gap-1.5">
+                      {/* Remove resident option if resident moved out */}
+                      {(() => {
+                        const u = allUsers.find(usr => usr.flatNumber.toUpperCase() === record.flatNumber.toUpperCase());
+                        if (u && u.role !== 'admin') {
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => setUserToDelete(u)}
+                              className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-rose-950/40 border border-slate-700 hover:border-rose-700 text-[11px] font-medium text-slate-400 hover:text-rose-300 transition flex items-center gap-1"
+                              title="Remove resident from society (vacated / moved out)"
+                            >
+                              <UserMinus className="w-3 h-3 text-rose-400" />
+                              <span className="hidden sm:inline">Remove</span>
+                            </button>
+                          );
+                        }
+                        return null;
+                      })()}
+
+                      {/* For Unpaid records: WhatsApp & Copy Reminder (Cash & UPI) */}
+                      {!record.isPaid && (
+                        <>
+                          {record.phone && (
+                            <a
+                              href={`https://wa.me/91${record.phone.replace(/\D/g, '')}?text=${encodeURIComponent(getReminderMessage(record))}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-2 py-1 rounded-lg bg-emerald-600/80 hover:bg-emerald-500 text-white text-[11px] font-semibold transition flex items-center gap-1 shadow-xs"
+                              title="Send reminder on WhatsApp (includes Cash & UPI options)"
+                            >
+                              <MessageSquare className="w-3 h-3" />
+                              <span className="hidden sm:inline">WhatsApp</span>
+                            </a>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleCopyReminder(record)}
+                            className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[11px] font-medium text-sky-300 transition flex items-center gap-1"
+                            title="Copy reminder message (Cash & UPI options) to clipboard"
+                          >
+                            {copiedReminderId === record.id ? (
+                              <>
+                                <Check className="w-3 h-3 text-emerald-400" />
+                                <span className="text-emerald-400">Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3 h-3 text-sky-400" />
+                                <span>Remind</span>
+                              </>
+                            )}
+                          </button>
+                        </>
+                      )}
+
                       {/* Edit Pending Amount (Arrears from previous months) */}
                       <button
                         type="button"
@@ -461,37 +640,71 @@ export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
               </div>
 
               <div>
-                <label className="block text-slate-300 mb-1 font-medium">Payment Mode</label>
-                <select
-                  value={payMethod}
-                  onChange={(e) => setPayMethod(e.target.value as any)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
-                >
-                  <option value="UPI">UPI (Google Pay, PhonePe, Paytm)</option>
-                  <option value="Cash">Cash to Admin / Treasurer</option>
-                  <option value="Bank Transfer">Bank Transfer (IMPS/NEFT)</option>
-                  <option value="Cheque">Cheque</option>
-                </select>
+                <label className="block text-slate-300 mb-1.5 font-medium">Payment Mode (Cash or Online) *</label>
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPayMethod('Cash');
+                      if (!payRef || payRef.startsWith('UPI')) setPayRef('Cash in Hand');
+                    }}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+                      payMethod === 'Cash'
+                        ? 'bg-amber-500/20 border-amber-500 text-amber-300 shadow-sm'
+                        : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span>💵 Cash in Hand</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPayMethod('Online');
+                      if (payRef === 'Cash in Hand') setPayRef('');
+                    }}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition ${
+                      payMethod !== 'Cash'
+                        ? 'bg-sky-500/20 border-sky-500 text-sky-300 shadow-sm'
+                        : 'bg-slate-800 border-slate-700 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    <span>🌐 Online / UPI / Bank</span>
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-slate-300 mb-1 font-medium">Date Member Paid *</label>
+                  <input
+                    type="date"
+                    value={payDate}
+                    onChange={(e) => setPayDate(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-slate-300 mb-1 font-medium">Date Entry Recorded by Admin *</label>
+                  <input
+                    type="date"
+                    value={payMarkedDate}
+                    onChange={(e) => setPayMarkedDate(e.target.value)}
+                    className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
+                    required
+                  />
+                </div>
               </div>
 
               <div>
-                <label className="block text-slate-300 mb-1 font-medium">Payment Date</label>
-                <input
-                  type="date"
-                  value={payDate}
-                  onChange={(e) => setPayDate(e.target.value)}
-                  className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 mb-1 font-medium">Transaction Reference / UTR</label>
+                <label className="block text-slate-300 mb-1 font-medium">
+                  {payMethod === 'Cash' ? 'Cash Receipt / Handed To Remarks' : 'Transaction Reference / UTR'}
+                </label>
                 <input
                   type="text"
                   value={payRef}
                   onChange={(e) => setPayRef(e.target.value)}
-                  placeholder="e.g. UPI/1298401928"
+                  placeholder={payMethod === 'Cash' ? 'e.g. Handed to President / Cash Slip #12' : 'e.g. UPI/1298401928 / IMPS'}
                   className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2 text-white placeholder-slate-500"
                 />
               </div>
@@ -684,9 +897,17 @@ export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
                   <span className="text-slate-400">Date Paid:</span>
                   <span className="text-slate-200">{receiptRecord.paidDate || 'Paid'}</span>
                 </div>
+                {receiptRecord.markedDate && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Entry Recorded Date:</span>
+                    <span className="text-slate-200">{receiptRecord.markedDate}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-slate-400">Payment Mode:</span>
-                  <span className="text-slate-200">{receiptRecord.paymentMethod || 'UPI'}</span>
+                  <span className={`font-semibold ${receiptRecord.paymentMethod === 'Cash' ? 'text-amber-300' : 'text-sky-300'}`}>
+                    {receiptRecord.paymentMethod === 'Cash' ? 'Cash in Hand' : (receiptRecord.paymentMethod || 'Online')}
+                  </span>
                 </div>
                 {receiptRecord.transactionRef && (
                   <div className="flex justify-between">
@@ -725,6 +946,56 @@ export const MaintenanceTab: React.FC<MaintenanceTabProps> = ({
           </div>
         </div>
       )}
+
+      {/* MODAL: REMOVE RESIDENT CONFIRMATION */}
+      {userToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-2xl p-5 shadow-2xl text-slate-100">
+            <div className="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center mb-3">
+              <Trash2 className="w-5 h-5" />
+            </div>
+            <h3 className="text-base font-bold text-white mb-1">Remove Resident from Flat</h3>
+            <p className="text-xs text-slate-300 leading-relaxed mb-4">
+              Are you sure you want to remove <strong>{userToDelete.name}</strong> from Flat <strong>{userToDelete.flatNumber}</strong>?
+              <br /><br />
+              Use this when a tenant has vacated or a resident has moved out. You can re-register a new resident for this flat anytime.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => setUserToDelete(null)}
+                className="px-3 py-2 rounded-xl text-slate-400 hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                id="btn-confirm-remove-user"
+                onClick={() => {
+                  deleteUser(userToDelete.id);
+                  setUserToDelete(null);
+                }}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 font-semibold text-white transition shadow-sm"
+              >
+                Yes, Remove Resident
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: DETAILED MONTHLY REPORT */}
+      <MonthlyReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+      />
+
+      {/* MODAL: SETUP RATES AND ARREARS */}
+      <SetupRatesAndArrearsModal
+        isOpen={showRatesModal}
+        onClose={() => setShowRatesModal(false)}
+      />
     </div>
   );
 };

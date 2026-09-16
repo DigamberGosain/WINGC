@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useSociety } from '../context/SocietyContext';
+import { User } from '../types';
 import { formatIndianVehicle, isValidIndianVehicle, downloadCSV } from '../utils/formatters';
 import {
   UserCheck,
@@ -18,7 +19,10 @@ import {
   Search,
   FileDown,
   RefreshCw,
-  LogOut
+  LogOut,
+  Users,
+  UserMinus,
+  Trash2
 } from 'lucide-react';
 
 export const ProfileTab: React.FC = () => {
@@ -31,6 +35,7 @@ export const ProfileTab: React.FC = () => {
     adminHandoverLogs,
     updateProfile,
     allUsers,
+    deleteUser,
     logout,
     resetToDefaults,
   } = useSociety();
@@ -43,6 +48,9 @@ export const ProfileTab: React.FC = () => {
   const [twoWheeler, setTwoWheeler] = useState(currentUser?.twoWheelerNumber || '');
   const [car, setCar] = useState(currentUser?.carNumber || '');
   const [profileMsg, setProfileMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // User deletion state
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
 
   // Admin Transfer state
   const [showTransferModal, setShowTransferModal] = useState(false);
@@ -377,8 +385,8 @@ export const ProfileTab: React.FC = () => {
               Historical Handover Log
             </span>
             <div className="space-y-2 text-xs">
-              {adminHandoverLogs.map((log) => (
-                <div key={log.id} className="p-2.5 rounded-lg bg-slate-800/40 border border-slate-800 space-y-1">
+              {adminHandoverLogs.map((log, idx) => (
+                <div key={`${log.id || 'log'}-${idx}`} className="p-2.5 rounded-lg bg-slate-800/40 border border-slate-800 space-y-1">
                   <div className="flex justify-between font-semibold">
                     <span className="text-slate-300">{log.fromAdminName} → <strong className="text-emerald-400">{log.toAdminName}</strong></span>
                     <span className="text-slate-400 text-[10px]">{log.transferDate}</span>
@@ -426,8 +434,8 @@ export const ProfileTab: React.FC = () => {
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-1 text-xs">
-          {filteredVehicles.map(u => (
-            <div key={u.id} className="p-2.5 rounded-xl bg-slate-800/50 border border-slate-700/60 flex items-start justify-between gap-1">
+          {filteredVehicles.map((u, idx) => (
+            <div key={`${u.id || u.flatNumber}-${idx}`} className="p-2.5 rounded-xl bg-slate-800/50 border border-slate-700/60 flex items-start justify-between gap-1">
               <div>
                 <span className="font-bold text-emerald-400 inline-block mr-1.5">{u.flatNumber}</span>
                 <span className="font-semibold text-white">{u.name}</span>
@@ -448,6 +456,76 @@ export const ProfileTab: React.FC = () => {
                 </div>
               </div>
               <span className="text-[10px] text-slate-400">📱 {u.mobile}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* SOCIETY RESIDENT MANAGEMENT & ROSTER */}
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-md">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0">
+              <Users className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-white">Society Resident Directory & Tenancy</h3>
+              <p className="text-[11px] text-slate-400">
+                {allUsers.length} Registered flats • Ownership and tenancy information
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-2 max-h-72 overflow-y-auto pr-1 text-xs">
+          {allUsers.map((u, idx) => (
+            <div
+              key={`${u.id || u.flatNumber}-${idx}`}
+              className="p-3 rounded-xl bg-slate-800/40 border border-slate-800 flex items-center justify-between gap-3"
+            >
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-bold text-emerald-400 font-mono">FLAT {u.flatNumber}</span>
+                  <span className="font-semibold text-white">{u.name}</span>
+                  {u.role === 'admin' && (
+                    <span className="px-1.5 py-0.2 rounded text-[10px] bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
+                      ADMIN
+                    </span>
+                  )}
+                  {u.occupancyType === 'tenant' ? (
+                    <span className="px-1.5 py-0.2 rounded text-[10px] bg-amber-500/15 text-amber-400 font-medium">
+                      Rented (Tenant)
+                    </span>
+                  ) : (
+                    <span className="px-1.5 py-0.2 rounded text-[10px] bg-slate-700 text-slate-300 font-medium">
+                      Owner
+                    </span>
+                  )}
+                </div>
+
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  Mobile: <strong>{u.mobile}</strong> {u.email ? `• ${u.email}` : ''}
+                </p>
+
+                {u.occupancyType === 'tenant' && u.ownerName && (
+                  <p className="text-[11px] text-amber-300/80 mt-0.5">
+                    Landlord: <strong>{u.ownerName}</strong> {u.ownerContact ? `(Ph: ${u.ownerContact})` : ''}
+                  </p>
+                )}
+              </div>
+
+              {/* Admin removal action: remove user who vacated/moved out */}
+              {isAdmin && u.role !== 'admin' && (
+                <button
+                  type="button"
+                  onClick={() => setUserToDelete(u)}
+                  className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-rose-950/40 border border-slate-700 hover:border-rose-700 text-[11px] font-medium text-slate-300 hover:text-rose-300 transition flex items-center gap-1 shrink-0"
+                  title="Remove resident from flat (vacated or moved out)"
+                >
+                  <UserMinus className="w-3.5 h-3.5 text-rose-400" />
+                  <span className="hidden sm:inline">Remove</span>
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -564,6 +642,44 @@ export const ProfileTab: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* REMOVE RESIDENT CONFIRMATION MODAL */}
+      {userToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="w-full max-w-sm bg-slate-900 border border-slate-700 rounded-2xl p-5 shadow-2xl text-slate-100">
+            <div className="w-10 h-10 rounded-xl bg-rose-500/20 text-rose-400 flex items-center justify-center mb-3">
+              <Trash2 className="w-5 h-5" />
+            </div>
+            <h3 className="text-base font-bold text-white mb-1">Remove Resident from Flat</h3>
+            <p className="text-xs text-slate-300 leading-relaxed mb-4">
+              Are you sure you want to remove <strong>{userToDelete.name}</strong> from Flat <strong>{userToDelete.flatNumber}</strong>?
+              <br /><br />
+              This removes their login profile. If this flat gets rented or occupied by someone new, they can register afresh anytime.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 text-xs">
+              <button
+                type="button"
+                onClick={() => setUserToDelete(null)}
+                className="px-3 py-2 rounded-xl text-slate-400 hover:text-white"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                id="btn-confirm-delete-user-profile"
+                onClick={() => {
+                  deleteUser(userToDelete.id);
+                  setUserToDelete(null);
+                }}
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 font-semibold text-white transition shadow-sm"
+              >
+                Yes, Remove Resident
+              </button>
+            </div>
           </div>
         </div>
       )}

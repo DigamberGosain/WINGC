@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import { useSociety } from '../context/SocietyContext';
-import { formatINR, getMonthDisplayName, downloadCSV } from '../utils/formatters';
+import { formatINR, getMonthDisplayName, downloadCSV, compareFlatNumbers } from '../utils/formatters';
+import { generateMonthlyReportPDF } from '../utils/pdfGenerator';
+import { MonthlyReportModal } from './MonthlyReportModal';
+import { SetupRatesAndArrearsModal } from './SetupRatesAndArrearsModal';
 import {
   Wallet,
   IndianRupee,
@@ -10,6 +13,7 @@ import {
   AlertTriangle,
   ArrowRight,
   FileDown,
+  FileText,
   Edit3,
   CheckCircle2,
   Clock,
@@ -18,7 +22,10 @@ import {
   Info,
   Shield,
   Building,
-  Check
+  Check,
+  Sliders,
+  MessageSquare,
+  Copy
 } from 'lucide-react';
 
 interface DashboardTabProps {
@@ -34,6 +41,8 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
 }) => {
   const {
     selectedMonth,
+    isRunningMonth,
+    activeRunningMonth,
     currentMonthConfig,
     updateMonthConfig,
     cashInHand,
@@ -46,10 +55,15 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
     totalMembersCount,
     unpaidPast15thList,
     maintenanceRecords,
+    allUsers,
     isAdmin,
     expenses,
     currentUser,
   } = useSociety();
+
+  // Modals state
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [showRatesModal, setShowRatesModal] = useState(false);
 
   // Proposed maintenance summary editable state (Admin)
   const [isEditingProposed, setIsEditingProposed] = useState(false);
@@ -66,41 +80,63 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
     setTimeout(() => setSavedSuccess(false), 2500);
   };
 
-  // Download detailed monthly report (CSV)
-  const handleDownloadReport = () => {
-    const filename = `WingC_Lakeview_Ledger_${selectedMonth}.csv`;
-    const rows = [
-      ['Wing-C Lakeview Apartment, Burari, Delhi'],
-      [`Monthly Society Accounting & Maintenance Report - ${getMonthDisplayName(selectedMonth)}`],
-      ['Generated On', new Date().toLocaleString('en-IN')],
-      [],
-      ['Flat No.', 'Resident Name', 'Mobile', 'Maintenance Paid (₹)', 'Pending / Arrears (₹)', 'Total Previous Month Balance (₹)', 'Status', 'Payment Date', 'Payment Method', 'Transaction Ref'],
-      ...maintenanceRecords.map(r => [
-        r.flatNumber,
-        r.userName,
-        r.phone,
-        r.isPaid ? r.maintenancePaid : 0,
-        r.pendingAmount,
-        r.pendingAmount, // Previous month arrears
-        r.isPaid ? 'PAID' : 'PENDING (PAST 15th)',
-        r.paidDate || '-',
-        r.paymentMethod || '-',
-        r.transactionRef || '-',
-      ]),
-      [],
-      ['--- SUMMARY ACCOUNTING LEDGER ---'],
-      ['Opening Reserve Balance', openingBalance],
-      ['Total Maintenance Collected', totalMaintenanceReceived],
-      ['Total Society Expenses Paid', totalExpenses],
-      ['NET CASH IN HAND', cashInHand],
-      ['Electricity Bill Status', electricityBill.isPaid ? `PAID (${formatINR(electricityBill.billAmount)})` : `DUE (${formatINR(electricityBill.billAmount)})`],
-    ];
-    downloadCSV(filename, rows);
+  // Direct PDF Download
+  const handleDirectDownloadPDF = () => {
+    const sortedRecords = [...maintenanceRecords].sort((a, b) => 
+      compareFlatNumbers(a.flatNumber, b.flatNumber)
+    );
+    const cashCollected = sortedRecords
+      .filter(r => r.isPaid && r.paymentMethod === 'Cash')
+      .reduce((sum, r) => sum + r.maintenancePaid, 0);
+    const onlineCollected = sortedRecords
+      .filter(r => r.isPaid && r.paymentMethod !== 'Cash')
+      .reduce((sum, r) => sum + r.maintenancePaid, 0);
+
+    generateMonthlyReportPDF({
+      selectedMonth,
+      sortedRecords,
+      allUsers,
+      expenses,
+      openingBalance,
+      totalMaintenanceReceived,
+      cashCollected,
+      onlineCollected,
+      totalExpenses,
+      cashInHand,
+      paidMembersCount,
+      unpaidMembersCount,
+      totalMembersCount,
+      electricityBill,
+    });
   };
 
-  // Quick WhatsApp message generator
+  // Download detailed monthly report (CSV directly or open report modal)
+  const handleDownloadReport = () => {
+    setShowReportModal(true);
+  };
+
+  // Quick WhatsApp & SMS reminder message generator (with Cash and UPI options)
+  const getReminderMessage = (record: typeof maintenanceRecords[0]) => {
+    const totalDue = record.maintenanceDue + (record.pendingAmount || 0);
+    const breakdown = record.pendingAmount > 0 
+      ? ` (Monthly: ₹${record.maintenanceDue.toLocaleString('en-IN')} + Previous Arrears: ₹${record.pendingAmount.toLocaleString('en-IN')})` 
+      : '';
+    return `Dear ${record.userName} ji (${record.flatNumber}),
+
+Polite reminder regarding Wing-C Lakeview Apartment maintenance for ${getMonthDisplayName(selectedMonth)}.
+
+• Total Due: ₹${totalDue.toLocaleString('en-IN')}${breakdown}
+
+Accepted Payment Modes:
+💵 1. Cash: Submit directly to Society Treasurer / Admin
+📱 2. UPI / Online: Transfer via UPI / Net Banking to Society Admin
+
+Kindly inform or share receipt/screenshot once payment is done. Thank you!
+- Wing-C Society Management`;
+  };
+
   const handleCopyReminder = (record: typeof maintenanceRecords[0]) => {
-    const msg = `Dear ${record.userName} ji (${record.flatNumber}), polite reminder regarding Wing-C Lakeview Apartment maintenance for ${getMonthDisplayName(selectedMonth)}. Due amount: ₹${record.maintenanceDue}${record.pendingAmount > 0 ? ` + Past Arrears: ₹${record.pendingAmount}` : ''}. Kindly transfer via UPI to society admin or inform once paid. Thank you!`;
+    const msg = getReminderMessage(record);
     navigator.clipboard.writeText(msg);
     setCopiedId(record.id);
     setTimeout(() => setCopiedId(null), 2500);
@@ -113,30 +149,64 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
   return (
     <div className="space-y-4 pb-20 pt-1">
       {/* Running Month Header Bar */}
-      <div className="bg-gradient-to-r from-slate-800 via-slate-800 to-slate-900 border border-slate-700/80 rounded-2xl p-4 shadow-md">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <span className="text-[11px] font-semibold text-emerald-400 uppercase tracking-wider block">
+      <div className="bg-gradient-to-r from-slate-800 via-slate-800 to-slate-900 border border-slate-700/80 rounded-2xl p-3 sm:p-4 shadow-md">
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
+          <div className="min-w-0">
+            <span className="text-[10px] sm:text-[11px] font-semibold text-emerald-400 uppercase tracking-wider block">
               Wing-C Society Ledger
             </span>
-            <h2 className="text-lg font-bold text-white flex items-center gap-2">
+            <h2 className="text-base sm:text-lg font-bold text-white flex items-center gap-2">
               <span>{getMonthDisplayName(selectedMonth)}</span>
-              <span className="text-xs px-2 py-0.5 rounded-full bg-slate-700 text-slate-300 font-normal">
-                Running Month
-              </span>
+              {isRunningMonth ? (
+                <span className="text-[11px] sm:text-xs px-2 sm:px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 font-semibold inline-flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  Running Month
+                </span>
+              ) : (
+                <span className="text-[11px] sm:text-xs px-2 sm:px-2.5 py-0.5 rounded-full bg-sky-500/20 text-sky-300 border border-sky-500/30 font-medium">
+                  Past Month Record
+                </span>
+              )}
             </h2>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            {isAdmin && (
+              <button
+                type="button"
+                id="btn-admin-setup-rates-dash"
+                onClick={() => setShowRatesModal(true)}
+                className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 transition"
+                title="Enter maintenance rate & arrears for all registered flats"
+              >
+                <Sliders className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden xs:inline">Rates & Arrears</span>
+                <span className="xs:hidden">Rates</span>
+              </button>
+            )}
+
+            {/* Direct PDF Download Button */}
+            <button
+              type="button"
+              id="btn-dash-download-pdf"
+              onClick={handleDirectDownloadPDF}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-xs font-bold text-white shadow-md transition"
+              title="Download official PDF Monthly Report"
+            >
+              <FileDown className="w-3.5 h-3.5" />
+              <span>Download PDF</span>
+            </button>
+
+            {/* View Full Ledger Report Modal */}
             <button
               type="button"
               id="btn-download-monthly-report"
               onClick={handleDownloadReport}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-semibold text-white shadow-sm transition"
-              title="Download detailed monthly report with resident names, payments & pending dues"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-200 transition"
+              title="View full society ledger and export options"
             >
-              <FileDown className="w-4 h-4" />
-              <span>Download Monthly Report</span>
+              <FileText className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Full Report</span>
             </button>
           </div>
         </div>
@@ -226,8 +296,8 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
 
             {/* Quick Preview of latest 2 expenses */}
             <div className="mt-3 space-y-1.5 text-xs">
-              {expenses.slice(0, 2).map(exp => (
-                <div key={exp.id} className="flex items-center justify-between text-slate-300 bg-slate-800/40 px-2.5 py-1.5 rounded-lg">
+              {expenses.slice(0, 2).map((exp, idx) => (
+                <div key={`${exp.id || 'exp'}-${idx}`} className="flex items-center justify-between text-slate-300 bg-slate-800/40 px-2.5 py-1.5 rounded-lg">
                   <span className="truncate pr-2 text-[11px]">{exp.title}</span>
                   <span className="font-semibold text-rose-300 shrink-0">{formatINR(exp.amount)}</span>
                 </div>
@@ -390,12 +460,12 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
         ) : (
           <div className="space-y-2">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-              {unpaidPast15thList.map((rec) => {
+              {unpaidPast15thList.map((rec, idx) => {
                 const totalDue = rec.maintenanceDue + rec.pendingAmount;
                 const isCopied = copiedId === rec.id;
                 return (
                   <div
-                    key={rec.id}
+                    key={`${rec.id || rec.flatNumber}-${idx}`}
                     className="p-3 rounded-xl bg-slate-800/60 border border-slate-700/80 hover:border-slate-600 transition flex flex-col justify-between"
                   >
                     <div>
@@ -428,13 +498,26 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                       </div>
                     </div>
 
-                    {/* Admin Actions: Mark Paid Quick & Copy WhatsApp Reminder */}
+                    {/* Admin Actions: WhatsApp & Copy Reminder (Cash & UPI) & Mark Paid */}
                     <div className="mt-2.5 pt-2 border-t border-slate-700/60 flex items-center gap-1.5">
+                      {rec.phone && (
+                        <a
+                          href={`https://wa.me/91${rec.phone.replace(/\D/g, '')}?text=${encodeURIComponent(getReminderMessage(rec))}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2 py-1 rounded-lg bg-emerald-600/80 hover:bg-emerald-500 text-white text-[11px] font-semibold transition flex items-center justify-center gap-1 shadow-xs"
+                          title="Open WhatsApp chat with reminder (Cash & UPI options)"
+                        >
+                          <MessageSquare className="w-3 h-3" />
+                          <span className="hidden xs:inline">WhatsApp</span>
+                        </a>
+                      )}
+
                       <button
                         type="button"
                         onClick={() => handleCopyReminder(rec)}
                         className="flex-1 py-1 px-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-[11px] font-medium text-slate-200 transition flex items-center justify-center gap-1"
-                        title="Copy WhatsApp reminder message"
+                        title="Copy reminder message (Cash & UPI options) to clipboard"
                       >
                         {isCopied ? (
                           <>
@@ -443,7 +526,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                           </>
                         ) : (
                           <>
-                            <Send className="w-3 h-3 text-sky-400" />
+                            <Copy className="w-3 h-3 text-sky-400" />
                             <span>Remind</span>
                           </>
                         )}
@@ -539,6 +622,18 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
           </div>
         )}
       </div>
+
+      {/* DETAILED MONTHLY REPORT MODAL */}
+      <MonthlyReportModal
+        isOpen={showReportModal}
+        onClose={() => setShowReportModal(false)}
+      />
+
+      {/* SETUP RATES AND ARREARS MODAL */}
+      <SetupRatesAndArrearsModal
+        isOpen={showRatesModal}
+        onClose={() => setShowRatesModal(false)}
+      />
     </div>
   );
 };
