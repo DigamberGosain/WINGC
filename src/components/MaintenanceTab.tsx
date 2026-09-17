@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useSociety } from '../context/SocietyContext';
 import { formatINR, getMonthDisplayName, downloadCSV, compareFlatNumbers } from '../utils/formatters';
-import { generateMonthlyReportPDF } from '../utils/pdfGenerator';
+import { generateMonthlyReportPDF, generateBlankMonthlyReportPDF } from '../utils/pdfGenerator';
 import { MaintenanceRecord, User } from '../types';
 import { MonthlyReportModal } from './MonthlyReportModal';
 import { SetupRatesAndArrearsModal } from './SetupRatesAndArrearsModal';
@@ -279,6 +279,18 @@ Kindly inform or share receipt/screenshot once payment is done. Thank you!
             >
               <FileDown className="w-3.5 h-3.5" />
               <span>Download PDF</span>
+            </button>
+
+            {/* Blank Sheet Button */}
+            <button
+              type="button"
+              id="btn-maint-blank-sheet"
+              onClick={() => generateBlankMonthlyReportPDF(selectedMonth)}
+              className="hidden sm:flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-slate-300 transition"
+              title="Download completely blank printable ledger format"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Blank Sheet</span>
             </button>
 
             <button

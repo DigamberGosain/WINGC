@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useSociety } from '../context/SocietyContext';
 import { User } from '../types';
 import { formatIndianVehicle, isValidIndianVehicle, downloadCSV } from '../utils/formatters';
+import { generateBlankMonthlyReportPDF } from '../utils/pdfGenerator';
+import { FreshSetupModal } from './FreshSetupModal';
 import {
   UserCheck,
   Shield,
@@ -22,7 +24,9 @@ import {
   LogOut,
   Users,
   UserMinus,
-  Trash2
+  Trash2,
+  RotateCcw,
+  FileSpreadsheet
 } from 'lucide-react';
 
 export const ProfileTab: React.FC = () => {
@@ -38,7 +42,10 @@ export const ProfileTab: React.FC = () => {
     deleteUser,
     logout,
     resetToDefaults,
+    selectedMonth,
   } = useSociety();
+
+  const [showFreshSetupModal, setShowFreshSetupModal] = useState(false);
 
   // Profile edit state
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -532,25 +539,68 @@ export const ProfileTab: React.FC = () => {
       </div>
 
       {/* Demo Reset & Sign Out Section */}
-      <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 flex flex-wrap items-center justify-between gap-3 text-xs">
-        <button
-          type="button"
-          onClick={resetToDefaults}
-          className="flex items-center gap-1.5 text-slate-400 hover:text-amber-400 transition"
-        >
-          <RefreshCw className="w-3.5 h-3.5" />
-          <span>Reset Sample Demo Data</span>
-        </button>
+      <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 space-y-3 text-xs">
+        {isAdmin && (
+          <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/20 flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2 font-bold text-amber-300">
+                <RotateCcw className="w-4 h-4 text-amber-400" />
+                <span>Admin: Fresh Society Setup & Reset Option</span>
+              </div>
+              <p className="text-[11px] text-slate-300">
+                Start fresh with custom maintenance rate, electricity bill, opening balance, and clean blank flats.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                id="btn-admin-fresh-setup"
+                onClick={() => setShowFreshSetupModal(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold shadow-md transition"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Enter Fresh Details / Reset</span>
+              </button>
+              <button
+                type="button"
+                id="btn-admin-blank-format-pdf"
+                onClick={() => generateBlankMonthlyReportPDF(selectedMonth)}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-semibold transition"
+                title="Download completely blank printable ledger format"
+              >
+                <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Blank Format Sheet</span>
+              </button>
+            </div>
+          </div>
+        )}
 
-        <button
-          type="button"
-          onClick={logout}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-950/40 border border-rose-800/50 text-rose-300 hover:bg-rose-900/50 font-semibold transition"
-        >
-          <LogOut className="w-3.5 h-3.5" />
-          <span>Sign Out of App</span>
-        </button>
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+          <button
+            type="button"
+            onClick={resetToDefaults}
+            className="flex items-center gap-1.5 text-slate-400 hover:text-amber-400 transition"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Reset Sample Demo Data</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={logout}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rose-950/40 border border-rose-800/50 text-rose-300 hover:bg-rose-900/50 font-semibold transition"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Sign Out of App</span>
+          </button>
+        </div>
       </div>
+
+      {/* Fresh Setup Modal */}
+      <FreshSetupModal
+        isOpen={showFreshSetupModal}
+        onClose={() => setShowFreshSetupModal(false)}
+      />
 
       {/* ADMIN TRANSFER MODAL */}
       {showTransferModal && (

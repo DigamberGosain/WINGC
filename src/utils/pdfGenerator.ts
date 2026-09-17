@@ -178,6 +178,34 @@ export const generateMonthlyReportPDF = (params: GenerateReportPDFParams) => {
     ];
   });
 
+  // If no records exist, print complete official blank formatted rows
+  if (ledgerRows.length === 0) {
+    const defaultWingCFlats = [
+      'C-101', 'C-102', 'C-103', 'C-104',
+      'C-201', 'C-202', 'C-203', 'C-204',
+      'C-301', 'C-302', 'C-303', 'C-304',
+      'C-401', 'C-402', 'C-403', 'C-404'
+    ];
+    defaultWingCFlats.forEach((flat, idx) => {
+      ledgerRows.push([
+        idx + 1,
+        flat,
+        '_____________________',
+        '[  ] Owner   [  ] Tenant',
+        '__________',
+        '________',
+        '________',
+        '________',
+        '[  ] Paid   [  ] Due',
+        '________',
+        '[  ] Cash   [  ] UPI',
+        '___/___/2026',
+        '___/___/2026',
+        '________'
+      ]);
+    });
+  }
+
   autoTable(doc, {
     startY: currentYAfterSummary + 3,
     head: [ledgerHeaders],
@@ -218,7 +246,7 @@ export const generateMonthlyReportPDF = (params: GenerateReportPDFParams) => {
         if (data.cell.raw === 'PAID') {
           data.cell.styles.textColor = [5, 150, 105]; // emerald
           data.cell.styles.fontStyle = 'bold';
-        } else {
+        } else if (data.cell.raw === 'PENDING') {
           data.cell.styles.textColor = [220, 38, 38]; // red
           data.cell.styles.fontStyle = 'bold';
         }
@@ -272,7 +300,19 @@ export const generateMonthlyReportPDF = (params: GenerateReportPDFParams) => {
   ]);
 
   if (expenses.length === 0) {
-    expenseRows.push([1 as any, '-', 'No expenses recorded for this month', '-', '-', '-', '-', '0']);
+    // Generate 6 formatted blank rows for recording expenses
+    for (let i = 1; i <= 6; i++) {
+      expenseRows.push([
+        i as any,
+        '___/___/2026',
+        '________________',
+        '________________________________________',
+        '____________________',
+        '[  ] Cash   [  ] UPI',
+        '____________',
+        '__________'
+      ]);
+    }
   }
 
   // Add total row to expenses
@@ -284,7 +324,7 @@ export const generateMonthlyReportPDF = (params: GenerateReportPDFParams) => {
     '',
     '',
     '',
-    totalExpenses.toLocaleString('en-IN')
+    expenses.length > 0 ? totalExpenses.toLocaleString('en-IN') : 'Rs. __________'
   ]);
 
   autoTable(doc, {
@@ -361,5 +401,293 @@ export const generateMonthlyReportPDF = (params: GenerateReportPDFParams) => {
 
   // Save the PDF
   const filename = `WingC_Lakeview_Report_${selectedMonth}.pdf`;
+  doc.save(filename);
+};
+
+/**
+ * Generates an official, completely blank formatted accounting and maintenance sheet
+ * for physical record keeping, AGM distributions, or fresh empty records.
+ */
+export const generateBlankMonthlyReportPDF = (monthLabel?: string) => {
+  const selectedMonth = monthLabel || 'BLANK_FORMAT';
+  const monthName = monthLabel ? getMonthDisplayName(monthLabel) : '_______________ 2026';
+  const generationDate = new Date().toLocaleString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+
+  const doc = new jsPDF({
+    orientation: 'landscape',
+    unit: 'mm',
+    format: 'a4',
+  });
+
+  const primaryEmerald = [6, 78, 59] as [number, number, number];
+  const darkSlate = [15, 23, 42] as [number, number, number];
+  const textMuted = [100, 116, 139] as [number, number, number];
+
+  // Page Header
+  doc.setFillColor(primaryEmerald[0], primaryEmerald[1], primaryEmerald[2]);
+  doc.rect(0, 0, 297, 24, 'F');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(14);
+  doc.setTextColor(255, 255, 255);
+  doc.text('WING-C LAKEVIEW APARTMENT RESIDENTS WELFARE ASSOCIATION', 14, 10);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(9);
+  doc.setTextColor(209, 250, 229);
+  doc.text('Burari, Delhi - 110084 • Official Blank Ledger & Society Maintenance Register', 14, 16);
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(10);
+  doc.setTextColor(255, 255, 255);
+  doc.text(`MONTH: ${monthName.toUpperCase()}`, 283, 10, { align: 'right' });
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(209, 250, 229);
+  doc.text(`Print Date: ${generationDate}`, 283, 16, { align: 'right' });
+
+  // Section 1: Financial Summary Cards (Blank)
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(darkSlate[0], darkSlate[1], darkSlate[2]);
+  doc.text('1. FINANCIAL EXECUTIVE SUMMARY & RECONCILIATION (BLANK FORMAT)', 14, 32);
+
+  const summaryData = [
+    [
+      'Opening Balance:\nRs. ________________',
+      'Total Maintenance Collected:\nRs. ________________\n(Cash: Rs. _______ | Online: Rs. _______)',
+      'Total Monthly Expenses:\nRs. ________________',
+      'Net Cash / Balance in Hand:\nRs. ________________',
+      'Collection Status:\n____ Paid / ____ Flats\n(____ Pending)',
+      'Common Electricity Bill:\nRs. ________________\nStatus: [  ] Paid   [  ] Due'
+    ]
+  ];
+
+  autoTable(doc, {
+    startY: 35,
+    body: summaryData,
+    theme: 'grid',
+    styles: {
+      fontSize: 8,
+      cellPadding: 3,
+      font: 'helvetica',
+      textColor: darkSlate,
+      valign: 'middle',
+      halign: 'center',
+    },
+    columnStyles: {
+      0: { cellWidth: 42, fontStyle: 'bold', fillColor: [248, 250, 252] },
+      1: { cellWidth: 54, fontStyle: 'bold', fillColor: [240, 253, 244] },
+      2: { cellWidth: 42, fontStyle: 'bold', fillColor: [254, 242, 242] },
+      3: { cellWidth: 45, fontStyle: 'bold', fillColor: [236, 253, 245] },
+      4: { cellWidth: 43, fillColor: [248, 250, 252] },
+      5: { cellWidth: 43, fillColor: [248, 250, 252] },
+    },
+    margin: { left: 14, right: 14 },
+  });
+
+  // Section 2: Ledger Rows for Wing-C Flats
+  const currentYAfterSummary = (doc as any).lastAutoTable.finalY + 8;
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(darkSlate[0], darkSlate[1], darkSlate[2]);
+  doc.text('2. RESIDENT MAINTENANCE LEDGER (NUMERICAL SERIES)', 14, currentYAfterSummary);
+
+  const ledgerHeaders = [
+    '#',
+    'Flat',
+    'Resident Name',
+    'Occupancy & Landlord',
+    'Mobile',
+    'Rate (Rs.)',
+    'Arrears (Rs.)',
+    'Total Due',
+    'Status',
+    'Paid (Rs.)',
+    'Mode',
+    'Paid Date',
+    'Entry Date',
+    'Member Sign / Balance'
+  ];
+
+  const defaultFlats = [
+    'C-101', 'C-102', 'C-103', 'C-104',
+    'C-201', 'C-202', 'C-203', 'C-204',
+    'C-301', 'C-302', 'C-303', 'C-304',
+    'C-401', 'C-402', 'C-403', 'C-404'
+  ];
+
+  const ledgerRows = defaultFlats.map((flat, idx) => [
+    idx + 1,
+    flat,
+    '_____________________',
+    '[  ] Owner   [  ] Tenant',
+    '__________',
+    '________',
+    '________',
+    '________',
+    '[  ] Paid   [  ] Due',
+    '________',
+    '[  ] Cash   [  ] UPI',
+    '___/___/2026',
+    '___/___/2026',
+    '________________'
+  ]);
+
+  autoTable(doc, {
+    startY: currentYAfterSummary + 3,
+    head: [ledgerHeaders],
+    body: ledgerRows,
+    theme: 'striped',
+    styles: {
+      fontSize: 7.5,
+      cellPadding: 2.2,
+      font: 'helvetica',
+      textColor: darkSlate,
+      valign: 'middle',
+    },
+    headStyles: {
+      fillColor: primaryEmerald,
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      halign: 'center',
+    },
+    columnStyles: {
+      0: { cellWidth: 8, halign: 'center' },
+      1: { cellWidth: 15, fontStyle: 'bold', halign: 'center' },
+      2: { cellWidth: 32, fontStyle: 'bold' },
+      3: { cellWidth: 38 },
+      4: { cellWidth: 23, halign: 'center' },
+      5: { cellWidth: 17, halign: 'right' },
+      6: { cellWidth: 17, halign: 'right' },
+      7: { cellWidth: 18, halign: 'right', fontStyle: 'bold' },
+      8: { cellWidth: 18, halign: 'center', fontStyle: 'bold' },
+      9: { cellWidth: 18, halign: 'right', fontStyle: 'bold' },
+      10: { cellWidth: 16, halign: 'center' },
+      11: { cellWidth: 20, halign: 'center' },
+      12: { cellWidth: 20, halign: 'center' },
+      13: { cellWidth: 20, halign: 'center' },
+    },
+    margin: { left: 14, right: 14 },
+  });
+
+  // Next Page for Expenses & Signatures
+  doc.addPage();
+  const nextSectionY = 20;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.setTextColor(darkSlate[0], darkSlate[1], darkSlate[2]);
+  doc.text('3. SOCIETY EXPENSES ITEMIZED STATEMENT (BLANK FORMAT)', 14, nextSectionY);
+
+  const expenseHeaders = [
+    '#',
+    'Date',
+    'Category',
+    'Expense Title & Description',
+    'Paid To / Vendor',
+    'Payment Mode',
+    'Bill / Ref No.',
+    'Amount (Rs.)'
+  ];
+
+  const expenseRows: any[] = [];
+  for (let i = 1; i <= 12; i++) {
+    expenseRows.push([
+      i,
+      '___/___/2026',
+      '________________',
+      '________________________________________',
+      '____________________',
+      '[  ] Cash   [  ] UPI',
+      '____________',
+      '__________'
+    ]);
+  }
+
+  expenseRows.push([
+    '',
+    '',
+    '',
+    'TOTAL MONTHLY EXPENSES',
+    '',
+    '',
+    '',
+    'Rs. ________________'
+  ]);
+
+  autoTable(doc, {
+    startY: nextSectionY + 3,
+    head: [expenseHeaders],
+    body: expenseRows,
+    theme: 'striped',
+    styles: {
+      fontSize: 8,
+      cellPadding: 2.8,
+      font: 'helvetica',
+      textColor: darkSlate,
+      valign: 'middle',
+    },
+    headStyles: {
+      fillColor: [30, 41, 59],
+      textColor: [255, 255, 255],
+      fontStyle: 'bold',
+      halign: 'center',
+    },
+    columnStyles: {
+      0: { cellWidth: 10, halign: 'center' },
+      1: { cellWidth: 25, halign: 'center' },
+      2: { cellWidth: 35, fontStyle: 'bold' },
+      3: { cellWidth: 80 },
+      4: { cellWidth: 40 },
+      5: { cellWidth: 25, halign: 'center' },
+      6: { cellWidth: 25, halign: 'center' },
+      7: { cellWidth: 29, halign: 'right', fontStyle: 'bold' },
+    },
+    didParseCell: (data) => {
+      if (data.section === 'body' && data.row.index === expenseRows.length - 1) {
+        data.cell.styles.fillColor = [241, 245, 249];
+        data.cell.styles.fontStyle = 'bold';
+      }
+    },
+    margin: { left: 14, right: 14 },
+  });
+
+  // Footer & Official Signatures block
+  const finalY = (doc as any).lastAutoTable.finalY + 12;
+
+  doc.setDrawColor(203, 213, 225);
+  doc.setFillColor(248, 250, 252);
+  doc.roundedRect(14, finalY, 269, 24, 2, 2, 'FD');
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8.5);
+  doc.setTextColor(darkSlate[0], darkSlate[1], darkSlate[2]);
+  doc.text('CERTIFICATE & RECONCILIATION STATEMENT:', 18, finalY + 6);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(textMuted[0], textMuted[1], textMuted[2]);
+  doc.text(
+    `This is an authentic official blank accounting ledger template for Wing-C Lakeview Apartment, Burari, Delhi. ` +
+    `Use for manual data collection, audit verifications, or physical noticeboard display.`,
+    18,
+    finalY + 12,
+    { maxWidth: 260 }
+  );
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(darkSlate[0], darkSlate[1], darkSlate[2]);
+  doc.text('Treasurer / Manager Signature: ___________________', 20, finalY + 20);
+  doc.text('Authorized Admin / RWA President (Wing-C): ___________________', 170, finalY + 20);
+
+  // Save the PDF
+  const filename = `WingC_Lakeview_Blank_Ledger_Format.pdf`;
   doc.save(filename);
 };

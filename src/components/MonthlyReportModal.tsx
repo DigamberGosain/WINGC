@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { useSociety } from '../context/SocietyContext';
 import { formatINR, getMonthDisplayName, downloadCSV, compareFlatNumbers } from '../utils/formatters';
-import { generateMonthlyReportPDF } from '../utils/pdfGenerator';
+import { generateMonthlyReportPDF, generateBlankMonthlyReportPDF } from '../utils/pdfGenerator';
 import {
   FileText,
   FileDown,
@@ -13,7 +13,8 @@ import {
   Share2,
   Copy,
   Building,
-  Check
+  Check,
+  FileSpreadsheet
 } from 'lucide-react';
 
 interface MonthlyReportModalProps {
@@ -234,6 +235,18 @@ Generated via Wing-C Society Portal.`;
               <span>Download PDF</span>
             </button>
 
+            {/* Blank Format PDF for Physical / Empty records */}
+            <button
+              type="button"
+              id="btn-download-blank-format"
+              onClick={() => generateBlankMonthlyReportPDF(selectedMonth)}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs font-semibold text-amber-300 hover:text-amber-200 transition"
+              title="Download official blank formatted ledger sheet (empty values for physical writing or new start)"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-amber-400" />
+              <span>Blank Format</span>
+            </button>
+
             {/* Excel / CSV */}
             <button
               type="button"
@@ -355,77 +368,118 @@ Generated via Wing-C Society Portal.`;
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800">
-                  {sortedRecords.map((rec, index) => {
-                    const user = allUsers.find(u => u.flatNumber.toUpperCase() === rec.flatNumber.toUpperCase());
-                    const totalDue = rec.maintenanceDue + (rec.pendingAmount || 0);
-
-                    return (
-                      <tr key={`${rec.id || rec.flatNumber}-${index}`} className="hover:bg-slate-800/40 transition">
+                  {sortedRecords.length === 0 ? (
+                    // Formatted blank rows for clean empty state
+                    ['C-101', 'C-102', 'C-103', 'C-104', 'C-201', 'C-202', 'C-203', 'C-204', 'C-301', 'C-302', 'C-401', 'C-402'].map((flat, index) => (
+                      <tr key={flat} className="hover:bg-slate-800/40 transition">
                         <td className="py-2 px-3 text-slate-500 font-mono">{index + 1}</td>
-                        <td className="py-2 px-3 font-bold text-white font-mono">{rec.flatNumber}</td>
+                        <td className="py-2 px-3 font-bold text-emerald-400 font-mono">{flat}</td>
                         <td className="py-2 px-3">
-                          <div className="font-semibold text-slate-100">{rec.userName}</div>
-                          <div className="text-[10px] text-slate-400 font-mono">{rec.phone}</div>
+                          <div className="text-slate-500 italic">____________________</div>
+                          <div className="text-[10px] text-slate-600 font-mono">__________</div>
                         </td>
-                        <td className="py-2 px-3">
-                          {user?.occupancyType === 'tenant' ? (
-                            <div>
-                              <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/15 text-amber-400 font-medium">
-                                Rented
-                              </span>
-                              <div className="text-[10px] text-slate-400 truncate mt-0.5">
-                                Owner: {user.ownerName || '-'} ({user.ownerContact || '-'})
-                              </div>
-                            </div>
-                          ) : (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300 font-medium">
-                              Self Owned
-                            </span>
-                          )}
+                        <td className="py-2 px-3 text-slate-500 text-[10px]">
+                          [  ] Owner  &nbsp; [  ] Tenant
                         </td>
-                        <td className="py-2 px-3 text-right font-mono text-slate-200">
-                          {formatINR(rec.maintenanceDue)}
+                        <td className="py-2 px-3 text-right font-mono text-slate-400">
+                          ₹ 2,000
                         </td>
-                        <td className="py-2 px-3 text-right font-mono text-amber-400">
-                          {rec.pendingAmount > 0 ? formatINR(rec.pendingAmount) : '-'}
+                        <td className="py-2 px-3 text-right font-mono text-slate-500">
+                          ₹ 0
                         </td>
-                        <td className="py-2 px-3 text-right font-mono font-bold text-slate-200">
-                          {formatINR(totalDue)}
+                        <td className="py-2 px-3 text-right font-mono text-slate-300">
+                          ₹ 2,000
                         </td>
-                        <td className="py-2 px-3 text-center">
-                          {rec.isPaid ? (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400">
-                              <CheckCircle2 className="w-3 h-3" /> PAID
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-400">
-                              <Clock className="w-3 h-3" /> PENDING
-                            </span>
-                          )}
+                        <td className="py-2 px-3 text-center text-[10px] text-slate-500">
+                          [  ] Paid &nbsp; [  ] Due
                         </td>
-                        <td className="py-2 px-3 text-right font-mono font-bold text-emerald-400">
-                          {rec.isPaid ? formatINR(rec.maintenancePaid) : '-'}
+                        <td className="py-2 px-3 text-right font-mono text-slate-500">
+                          ₹ ______
                         </td>
-                        <td className="py-2 px-3 text-center">
-                          {rec.isPaid ? (
-                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                              rec.paymentMethod === 'Cash' 
-                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' 
-                                : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
-                            }`}>
-                              {rec.paymentMethod || 'Online'}
-                            </span>
-                          ) : '-'}
+                        <td className="py-2 px-3 text-center text-[10px] text-slate-500">
+                          [  ] Cash &nbsp; [  ] Online
                         </td>
-                        <td className="py-2 px-3 text-slate-400 text-[11px] whitespace-nowrap">
-                          {rec.paidDate || '-'}
+                        <td className="py-2 px-3 text-slate-600 text-[11px] whitespace-nowrap">
+                          ___/___/2026
                         </td>
-                        <td className="py-2 px-3 text-slate-400 text-[11px] whitespace-nowrap">
-                          {rec.markedDate || rec.paidDate || '-'}
+                        <td className="py-2 px-3 text-slate-600 text-[11px] whitespace-nowrap">
+                          ___/___/2026
                         </td>
                       </tr>
-                    );
-                  })}
+                    ))
+                  ) : (
+                    sortedRecords.map((rec, index) => {
+                      const user = allUsers.find(u => u.flatNumber.toUpperCase() === rec.flatNumber.toUpperCase());
+                      const totalDue = rec.maintenanceDue + (rec.pendingAmount || 0);
+
+                      return (
+                        <tr key={`${rec.id || rec.flatNumber}-${index}`} className="hover:bg-slate-800/40 transition">
+                          <td className="py-2 px-3 text-slate-500 font-mono">{index + 1}</td>
+                          <td className="py-2 px-3 font-bold text-white font-mono">{rec.flatNumber}</td>
+                          <td className="py-2 px-3">
+                            <div className="font-semibold text-slate-100">{rec.userName}</div>
+                            <div className="text-[10px] text-slate-400 font-mono">{rec.phone}</div>
+                          </td>
+                          <td className="py-2 px-3">
+                            {user?.occupancyType === 'tenant' ? (
+                              <div>
+                                <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-500/15 text-amber-400 font-medium">
+                                  Rented
+                                </span>
+                                <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                                  Owner: {user.ownerName || '-'} ({user.ownerContact || '-'})
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-800 text-slate-300 font-medium">
+                                Self Owned
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono text-slate-200">
+                            {formatINR(rec.maintenanceDue)}
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono text-amber-400">
+                            {rec.pendingAmount > 0 ? formatINR(rec.pendingAmount) : '-'}
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono font-bold text-slate-200">
+                            {formatINR(totalDue)}
+                          </td>
+                          <td className="py-2 px-3 text-center">
+                            {rec.isPaid ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-400">
+                                <CheckCircle2 className="w-3 h-3" /> PAID
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-500/15 text-rose-400">
+                                <Clock className="w-3 h-3" /> PENDING
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2 px-3 text-right font-mono font-bold text-emerald-400">
+                            {rec.isPaid ? formatINR(rec.maintenancePaid) : '-'}
+                          </td>
+                          <td className="py-2 px-3 text-center">
+                            {rec.isPaid ? (
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                                rec.paymentMethod === 'Cash' 
+                                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' 
+                                  : 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
+                              }`}>
+                                {rec.paymentMethod || 'Online'}
+                              </span>
+                            ) : '-'}
+                          </td>
+                          <td className="py-2 px-3 text-slate-400 text-[11px] whitespace-nowrap">
+                            {rec.paidDate || '-'}
+                          </td>
+                          <td className="py-2 px-3 text-slate-400 text-[11px] whitespace-nowrap">
+                            {rec.markedDate || rec.paidDate || '-'}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
                 <tfoot>
                   <tr className="bg-slate-800 font-bold border-t border-slate-700 text-slate-100">
@@ -459,26 +513,34 @@ Generated via Wing-C Society Portal.`;
               2. Society Expenses Breakdown ({getMonthDisplayName(selectedMonth)})
             </h4>
 
-            {expenses.length === 0 ? (
-              <div className="p-4 rounded-xl bg-slate-800/40 border border-slate-800 text-center text-slate-400">
-                No expense vouchers recorded for this month yet.
-              </div>
-            ) : (
-              <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/60">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-slate-800/80 text-slate-300 border-b border-slate-700/80 text-[11px]">
-                      <th className="py-2.5 px-3 font-semibold">Date</th>
-                      <th className="py-2.5 px-3 font-semibold">Category</th>
-                      <th className="py-2.5 px-3 font-semibold">Expense Title / Description</th>
-                      <th className="py-2.5 px-3 font-semibold">Paid To (Vendor/Person)</th>
-                      <th className="py-2.5 px-3 font-semibold text-center">Mode</th>
-                      <th className="py-2.5 px-3 font-semibold">Bill / Ref</th>
-                      <th className="py-2.5 px-3 font-semibold text-right">Amount (₹)</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-800">
-                    {expenses.map((e, idx) => (
+            <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/60">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-800/80 text-slate-300 border-b border-slate-700/80 text-[11px]">
+                    <th className="py-2.5 px-3 font-semibold">Date</th>
+                    <th className="py-2.5 px-3 font-semibold">Category</th>
+                    <th className="py-2.5 px-3 font-semibold">Expense Title / Description</th>
+                    <th className="py-2.5 px-3 font-semibold">Paid To (Vendor/Person)</th>
+                    <th className="py-2.5 px-3 font-semibold text-center">Mode</th>
+                    <th className="py-2.5 px-3 font-semibold">Bill / Ref</th>
+                    <th className="py-2.5 px-3 font-semibold text-right">Amount (₹)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {expenses.length === 0 ? (
+                    [1, 2, 3, 4, 5, 6].map((num) => (
+                      <tr key={`blank-exp-${num}`} className="hover:bg-slate-800/40 transition">
+                        <td className="py-2 px-3 text-slate-500 font-mono">___/___/2026</td>
+                        <td className="py-2 px-3 text-slate-500">________________</td>
+                        <td className="py-2 px-3 text-slate-500 italic">____________________________________</td>
+                        <td className="py-2 px-3 text-slate-500">____________________</td>
+                        <td className="py-2 px-3 text-center text-slate-500 text-[10px]">[  ] Cash  [  ] UPI</td>
+                        <td className="py-2 px-3 text-slate-500 font-mono">________</td>
+                        <td className="py-2 px-3 text-right font-mono text-slate-500">₹ _______</td>
+                      </tr>
+                    ))
+                  ) : (
+                    expenses.map((e, idx) => (
                       <tr key={`${e.id || 'exp'}-${idx}`} className="hover:bg-slate-800/40 transition">
                         <td className="py-2 px-3 text-slate-400 font-mono whitespace-nowrap">{e.date}</td>
                         <td className="py-2 px-3 font-medium text-slate-200">{e.category}</td>
@@ -494,19 +556,19 @@ Generated via Wing-C Society Portal.`;
                           {formatINR(e.amount)}
                         </td>
                       </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr className="bg-slate-800 font-bold border-t border-slate-700 text-slate-100">
-                      <td colSpan={6} className="py-2.5 px-3">Total Monthly Expenses Paid</td>
-                      <td className="py-2.5 px-3 text-right font-mono text-rose-400">
-                        {formatINR(totalExpenses)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            )}
+                    ))
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-slate-800 font-bold border-t border-slate-700 text-slate-100">
+                    <td colSpan={6} className="py-2.5 px-3">Total Monthly Expenses Paid</td>
+                    <td className="py-2.5 px-3 text-right font-mono text-rose-400">
+                      {expenses.length > 0 ? formatINR(totalExpenses) : '₹ 0 (Blank Format)'}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
           </div>
 
           {/* Section 3: Final Financial Position & Cash in Hand */}

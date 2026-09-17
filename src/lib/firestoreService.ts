@@ -337,3 +337,253 @@ export async function saveAdminLogToFirestore(log: AdminHandoverLog): Promise<vo
     handleFirestoreError(err, OperationType.WRITE, `${ADMIN_LOGS_COLLECTION}/${log.id}`);
   }
 }
+
+export async function deleteMaintenanceRecordFromFirestore(recordId: string): Promise<void> {
+  try {
+    const recRef = doc(db, MAINTENANCE_RECORDS_COLLECTION, recordId);
+    await deleteDoc(recRef);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.DELETE, `${MAINTENANCE_RECORDS_COLLECTION}/${recordId}`);
+  }
+}
+
+/**
+ * Checks Firestore for existing users with duplicate flatNumber or mobile.
+ */
+export async function checkDuplicateInFirestore(
+  flatNumber: string,
+  mobile: string,
+  excludeUserId?: string
+): Promise<{ isDuplicate: boolean; reason?: string; existingUser?: User }> {
+  try {
+    const usersSnap = await getDocs(collection(db, USERS_COLLECTION));
+    const normalizedFlat = flatNumber.trim().toUpperCase();
+    const normalizedMobile = mobile.trim();
+
+    for (const docSnap of usersSnap.docs) {
+      const u = docSnap.data() as User;
+      if (excludeUserId && u.id === excludeUserId) continue;
+
+      if (u.flatNumber && u.flatNumber.trim().toUpperCase() === normalizedFlat) {
+        return {
+          isDuplicate: true,
+          reason: `Flat ${normalizedFlat} is already registered with resident ${u.name} (Mobile: ${u.mobile}). Each flat can only have one active resident account. If the resident has moved out, ask the society Admin to remove them.`,
+          existingUser: u,
+        };
+      }
+
+      if (u.mobile && u.mobile.trim() === normalizedMobile) {
+        return {
+          isDuplicate: true,
+          reason: `Mobile number ${normalizedMobile} is already registered under Flat ${u.flatNumber} (${u.name}). Duplicate mobile numbers are not allowed.`,
+          existingUser: u,
+        };
+      }
+    }
+
+    return { isDuplicate: false };
+  } catch (err) {
+    console.warn('Firestore duplicate check offline or errored, falling back to local verification:', err);
+    return { isDuplicate: false };
+  }
+}
+
+/**
+ * Resets Firestore database to fresh blank state with Admin's specified initial settings.
+ */
+export async function resetFirestoreSocietyData(params: {
+  adminUser: User;
+  monthConfig: MonthConfig;
+  electricityBill: ElectricityBill;
+  expenses: ExpenseItem[];
+  maintenanceRecords: MaintenanceRecord[];
+}): Promise<{ success: boolean; error?: string }> {
+  try {
+    const { adminUser, monthConfig, electricityBill, expenses, maintenanceRecords } = params;
+
+    // 1. Clear existing documents in batches
+    const collectionsToClear = [
+      USERS_COLLECTION,
+      EXPENSES_COLLECTION,
+      MAINTENANCE_RECORDS_COLLECTION
+    ];
+
+    for (const colName of collectionsToClear) {
+      const snap = await getDocs(collection(db, colName));
+      const batch = writeBatch(db);
+      snap.forEach(d => {
+        batch.delete(d.ref);
+      });
+      await batch.commit();
+    }
+
+    // 2. Write fresh seed data
+    const batch = writeBatch(db);
+
+    // Save admin user
+    const adminRef = doc(db, USERS_COLLECTION, adminUser.id);
+    batch.set(adminRef, cleanPayload(adminUser));
+
+    // Save month config
+    const configRef = doc(db, MONTHS_CONFIG_COLLECTION, monthConfig.monthYear);
+    batch.set(configRef, cleanPayload(monthConfig));
+
+    // Save electricity bill
+    const billRef = doc(db, ELECTRICITY_BILLS_COLLECTION, electricityBill.monthYear);
+    batch.set(billRef, cleanPayload(electricityBill));
+
+    // Save any initial expenses
+    for (const exp of expenses) {
+      const expRef = doc(db, EXPENSES_COLLECTION, exp.id);
+      batch.set(expRef, cleanPayload(exp));
+    }
+
+    // Save any initial maintenance records
+    for (const rec of maintenanceRecords) {
+      const recRef = doc(db, MAINTENANCE_RECORDS_COLLECTION, rec.id);
+      batch.set(recRef, cleanPayload(rec));
+    }
+
+    await batch.commit();
+    return { success: true };
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, 'reset_society_data');
+    return { success: false, error: String(err) };
+  }
+}
+
+// ==========================================
+// PASSWORD RESET CODE FIRESTORE HELPERS
+// ==========================================
+
+const PASSWORD_RESETS_COLLECTION = 'passwordResetRequests';
+
+export interface PasswordResetRecord {
+  id: string;
+  email: string;
+  code: string;
+  createdAt: string;
+  expiresAt: number;
+  used: boolean;
+}
+
+/**
+ * Saves a 6-digit verification code to Firestore for password reset.
+ */
+export async function savePasswordResetCode(email: string, code: string): Promise<void> {
+  try {
+    const docId = `reset-${email.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+    const resetRef = doc(db, PASSWORD_RESETS_COLLECTION, docId);
+    const data: PasswordResetRecord = {
+      id: docId,
+      email: email.toLowerCase().trim(),
+      code: code.trim(),
+      createdAt: new Date().toISOString(),
+      expiresAt: Date.now() + 15 * 60 * 1000, // 15 minutes validity
+      used: false,
+    };
+    await setDoc(resetRef, data);
+  } catch (err) {
+    handleFirestoreError(err, OperationType.WRITE, `${PASSWORD_RESETS_COLLECTION}/${email}`);
+  }
+}
+
+/**
+ * Verifies a 6-digit code against Firestore.
+ */
+export async function verifyPasswordResetCode(
+  email: string,
+  code: string
+): Promise<{ valid: boolean; message: string }> {
+  try {
+    const docId = `reset-${email.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+    const snap = await getDocs(collection(db, PASSWORD_RESETS_COLLECTION));
+    let matchedDoc: PasswordResetRecord | null = null;
+
+    snap.forEach((d) => {
+      const rec = d.data() as PasswordResetRecord;
+      if (rec.email.toLowerCase() === email.toLowerCase().trim()) {
+        matchedDoc = rec;
+      }
+    });
+
+    if (!matchedDoc) {
+      return { valid: false, message: 'No reset request found for this email address.' };
+    }
+
+    const rec: PasswordResetRecord = matchedDoc;
+
+    if (rec.used) {
+      return { valid: false, message: 'This verification code has already been used. Please request a new one.' };
+    }
+
+    if (Date.now() > rec.expiresAt) {
+      return { valid: false, message: 'This verification code has expired. Please request a new 6-digit code.' };
+    }
+
+    if (rec.code !== code.trim()) {
+      return { valid: false, message: 'Incorrect 6-digit verification code. Please check and try again.' };
+    }
+
+    return { valid: true, message: 'Verification successful!' };
+  } catch (err) {
+    console.warn('Firestore verification lookup fallback:', err);
+    return { valid: false, message: 'Verification error occurred. Please try again.' };
+  }
+}
+
+/**
+ * Marks a password reset code as used in Firestore.
+ */
+export async function markPasswordResetCodeUsed(email: string): Promise<void> {
+  try {
+    const docId = `reset-${email.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+    const resetRef = doc(db, PASSWORD_RESETS_COLLECTION, docId);
+    await setDoc(resetRef, { used: true, usedAt: new Date().toISOString() }, { merge: true });
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, `${PASSWORD_RESETS_COLLECTION}/${email}`);
+  }
+}
+
+/**
+ * Updates a user's password in Firestore by email.
+ */
+export async function updateUserPasswordInFirestore(
+  email: string,
+  newPassword: string
+): Promise<{ success: boolean; user?: User; message: string }> {
+  try {
+    const usersSnap = await getDocs(collection(db, USERS_COLLECTION));
+    let foundDocId: string | null = null;
+    let foundUser: User | null = null;
+
+    usersSnap.forEach((d) => {
+      const u = d.data() as User;
+      if (u.email.toLowerCase() === email.toLowerCase().trim()) {
+        foundDocId = d.id;
+        foundUser = u;
+      }
+    });
+
+    if (!foundDocId || !foundUser) {
+      return { success: false, message: 'User not found in society directory.' };
+    }
+
+    const updatedUser: User = {
+      ...(foundUser as User),
+      password: newPassword,
+    };
+
+    const userRef = doc(db, USERS_COLLECTION, foundDocId);
+    await setDoc(userRef, cleanPayload(updatedUser), { merge: true });
+
+    // Mark reset code used
+    await markPasswordResetCodeUsed(email);
+
+    return { success: true, user: updatedUser, message: 'Password updated successfully in Firebase.' };
+  } catch (err) {
+    handleFirestoreError(err, OperationType.UPDATE, USERS_COLLECTION);
+    return { success: false, message: 'Failed to update password in Firebase: ' + String(err) };
+  }
+}
+

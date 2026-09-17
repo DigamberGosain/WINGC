@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { downloadFileAsBlob } from '../utils/fileDownloader';
 import {
   Smartphone,
   Package,
@@ -17,7 +18,8 @@ import {
   FileDown,
   AlertTriangle,
   Rocket,
-  Info
+  Info,
+  Loader2
 } from 'lucide-react';
 
 interface PlayStoreGuideModalProps {
@@ -29,6 +31,8 @@ export const PlayStoreGuideModal: React.FC<PlayStoreGuideModalProps> = ({ isOpen
   const [copiedUrl, setCopiedUrl] = useState(false);
   const [copiedCmd, setCopiedCmd] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'deploy' | 'apk' | 'pwa' | 'playstore'>('deploy');
+  const [downloadingWeb, setDownloadingWeb] = useState(false);
+  const [downloadingAndroid, setDownloadingAndroid] = useState(false);
   
   // Allow user to test with the current preview URL or input their deployed public URL
   const [customPublicUrl, setCustomPublicUrl] = useState('');
@@ -248,22 +252,73 @@ bubblewrap build`;
                 </span>
               </div>
               <p className="text-slate-300 leading-relaxed">
-                We generated the complete native Android project (with <strong>Gradle wrapper, AndroidManifest, Java source, and assets</strong>) and packaged it into a ready-to-use zip archive.
+                Download the complete codebase for Wing-C Lakeview Apartment. Both packages are ready to download and run:
               </p>
 
-              {/* Direct Download Button */}
-              <a
-                href="/wing-c-lakeview-android-project.zip"
-                download="wing-c-lakeview-android-project.zip"
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-lg transition"
-              >
-                <FileDown className="w-4 h-4" />
-                <span>Download Android Project (ZIP) — 1-Click</span>
-                <Download className="w-3.5 h-3.5 opacity-70" />
-              </a>
-              <p className="text-[10px] text-slate-400 text-center">
-                Contains the full <code>/android</code> folder, source code, and Gradle wrapper ready for Android Studio.
-              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                {/* Full Web Project */}
+                <button
+                  type="button"
+                  disabled={downloadingWeb}
+                  onClick={async () => {
+                    setDownloadingWeb(true);
+                    await downloadFileAsBlob(
+                      '/wing-c-lakeview-complete-project.zip',
+                      'wing-c-lakeview-complete-project.zip'
+                    );
+                    setDownloadingWeb(false);
+                  }}
+                  className="flex items-center justify-center gap-2 py-3 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs shadow-lg transition"
+                >
+                  {downloadingWeb ? (
+                    <>
+                      <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
+                      <span>Downloading ZIP...</span>
+                    </>
+                  ) : (
+                    <>
+                      <FileDown className="w-4 h-4 shrink-0" />
+                      <span>Full Web Project (ZIP)</span>
+                    </>
+                  )}
+                </button>
+
+                {/* Android Native Project */}
+                <button
+                  type="button"
+                  disabled={downloadingAndroid}
+                  onClick={async () => {
+                    setDownloadingAndroid(true);
+                    await downloadFileAsBlob(
+                      '/wing-c-lakeview-android-studio.zip',
+                      'wing-c-lakeview-android-studio.zip'
+                    );
+                    setDownloadingAndroid(false);
+                  }}
+                  className="flex items-center justify-center gap-2 py-3 px-3 rounded-xl bg-teal-600 hover:bg-teal-500 active:bg-teal-700 disabled:opacity-50 text-white font-bold text-xs shadow-lg transition"
+                >
+                  {downloadingAndroid ? (
+                    <>
+                      <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
+                      <span>Downloading ZIP...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Smartphone className="w-4 h-4 shrink-0" />
+                      <span>Android Studio Project (ZIP)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800 text-[11px] text-slate-400 space-y-1">
+                <p className="text-slate-300 font-medium">
+                  💡 Note: If you are viewing inside Google AI Studio preview:
+                </p>
+                <p>
+                  Browsers may block automatic file downloads from embedded iframes. If clicking does not start the download, click <a href={defaultStagingUrl} target="_blank" rel="noreferrer" className="text-emerald-400 underline font-semibold">Open App in New Tab</a>, or use AI Studio's top-right menu (<strong>Settings / Export &gt; Export to ZIP</strong>).
+                </p>
+              </div>
             </div>
 
             {/* Method 1: Android Studio (Standard Way) */}

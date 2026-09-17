@@ -17,6 +17,21 @@ import {
   INITIAL_MAINTENANCE_RECORDS,
   INITIAL_ADMIN_HANDOVER_LOGS
 } from '../data/seedData';
+import {
+  saveUserToFirestore,
+  deleteUserFromFirestore,
+  saveExpenseToFirestore,
+  deleteExpenseFromFirestore,
+  saveMonthConfigToFirestore,
+  saveElectricityBillToFirestore,
+  resetFirestoreSocietyData,
+  deleteMaintenanceRecordFromFirestore,
+  checkDuplicateInFirestore,
+  savePasswordResetCode,
+  verifyPasswordResetCode as verifyCodeInFirestore,
+  updateUserPasswordInFirestore
+} from '../lib/firestoreService';
+import { sendPasswordResetEmailViaGmail } from '../lib/gmailService';
 
 interface SocietyContextType {
   // Current user & authentication
@@ -28,6 +43,12 @@ interface SocietyContextType {
   registerUser: (userData: Omit<User, 'id' | 'registeredAt'>) => { success: boolean; message: string };
   updateProfile: (updated: Partial<User>) => void;
   deleteUser: (userId: string) => { success: boolean; message: string };
+  
+  // Password Recovery via Gmail & Firebase
+  requestPasswordReset: (email: string) => Promise<{ success: boolean; message: string; code?: string; viaGmail: boolean }>;
+  verifyPasswordReset: (email: string, code: string) => Promise<{ valid: boolean; message: string }>;
+  resetPasswordWithCode: (email: string, code: string, newPassword: string) => Promise<{ success: boolean; message: string }>;
+  resetAllToFirstTimeUse: () => Promise<{ success: boolean; message: string }>;
   
   // Admin single-person & handover management
   currentAdmin: User | null;
@@ -73,6 +94,14 @@ interface SocietyContextType {
   
   // Reset / Refresh demo data
   resetToDefaults: () => void;
+  resetSocietyData: (params: {
+    monthYear: string;
+    monthlyMaintenanceRate: number;
+    openingBalance: number;
+    electricityBill: ElectricityBill;
+    initialExpenses?: ExpenseItem[];
+    initializeFlats?: boolean;
+  }) => Promise<void>;
 }
 
 const STORAGE_PREFIX = 'wing_c_lakeview_v1_';
@@ -377,22 +406,30 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       }
     }
 
-    // 2. Check if Flat or Mobile already exists
-    const duplicate = users.find(u => 
-      u.flatNumber.toLowerCase() === userData.flatNumber.trim().toLowerCase() ||
-      u.mobile === userData.mobile.trim()
-    );
-    if (duplicate) {
+    // 2. Check if Flat or Mobile already exists (strict uniqueness)
+    const normFlat = userData.flatNumber.trim().toUpperCase();
+    const normMobile = userData.mobile.trim();
+
+    const flatExisting = users.find(u => u.flatNumber && u.flatNumber.trim().toUpperCase() === normFlat);
+    if (flatExisting) {
       return {
         success: false,
-        message: `An account already exists for Flat ${userData.flatNumber} or Mobile ${userData.mobile}.`,
+        message: `Registration blocked: Flat ${normFlat} is already registered under resident ${flatExisting.name} (${flatExisting.occupancyType === 'tenant' ? 'Tenant' : 'Owner'}, Mobile: ${flatExisting.mobile}). Each flat can only have 1 active resident account. If the previous resident has moved out, ask the Society Admin to remove their profile.`,
+      };
+    }
+
+    const mobileExisting = users.find(u => u.mobile && u.mobile.trim() === normMobile);
+    if (mobileExisting) {
+      return {
+        success: false,
+        message: `Registration blocked: Mobile number ${normMobile} is already registered with Flat ${mobileExisting.flatNumber} (${mobileExisting.name}). Duplicate mobile numbers cannot be registered.`,
       };
     }
 
     const newUser: User = {
       ...userData,
       id: `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      flatNumber: userData.flatNumber.trim().toUpperCase(),
+      flatNumber: normFlat,
       occupancyType: userData.occupancyType || 'owner',
       ownerName: userData.occupancyType === 'tenant' ? userData.ownerName?.trim() : undefined,
       ownerContact: userData.occupancyType === 'tenant' ? userData.ownerContact?.trim() : undefined,
@@ -402,10 +439,28 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     };
 
     setUsers(prev => [...prev, newUser]);
+    saveUserToFirestore(newUser).catch(err => console.warn('Could not sync new user to Firestore:', err));
 
-    // Add to maintenance records for current month
+    // Add or update maintenance record for current month
     setMaintenanceRecordsMap(prev => {
       const currentList = prev[selectedMonth] || [];
+      const existingIdx = currentList.findIndex(r => r.flatNumber.toUpperCase() === normFlat);
+
+      if (existingIdx >= 0) {
+        // Flat already had an initialized placeholder row from fresh setup, attach the registered resident
+        const updatedList = [...currentList];
+        updatedList[existingIdx] = {
+          ...updatedList[existingIdx],
+          userId: newUser.id,
+          userName: newUser.name,
+          phone: newUser.mobile,
+        };
+        return {
+          ...prev,
+          [selectedMonth]: updatedList,
+        };
+      }
+
       const newRecord: MaintenanceRecord = {
         id: `maint-${selectedMonth}-${newUser.id}`,
         monthYear: selectedMonth,
@@ -441,14 +496,31 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
       };
     }
 
-    // Remove user
+    // Remove user from local state
     setUsers(prev => prev.filter(u => u.id !== userId));
+
+    // Sync deletion to Firestore
+    deleteUserFromFirestore(userId).catch(err => console.warn('Could not sync user deletion to Firestore:', err));
 
     // Remove or detach their record from maintenance records
     setMaintenanceRecordsMap(prev => {
       const updatedMap: Record<string, MaintenanceRecord[]> = {};
       Object.keys(prev).forEach(m => {
-        updatedMap[m] = prev[m].filter(r => r.userId !== userId && r.flatNumber !== target.flatNumber);
+        // Convert the record to an unassigned blank flat record so the flat series remains clean
+        updatedMap[m] = prev[m].map(r => {
+          if (r.userId === userId || r.flatNumber.toUpperCase() === target.flatNumber.toUpperCase()) {
+            return {
+              ...r,
+              userId: undefined,
+              userName: `Flat ${target.flatNumber} (Vacated)`,
+              phone: '',
+              isPaid: false,
+              maintenancePaid: 0,
+              notes: 'Resident moved out - ready for next tenant/owner',
+            };
+          }
+          return r;
+        });
       });
       return updatedMap;
     });
@@ -459,7 +531,7 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     return { 
       success: true, 
-      message: `Resident ${target.name} (Flat ${target.flatNumber}) removed from Wing-C society records.` 
+      message: `Resident ${target.name} (Flat ${target.flatNumber}) removed from Wing-C society records. The flat is now vacant and open for fresh registration.` 
     };
   };
 
@@ -687,6 +759,269 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
     setAdminHandoverLogs(INITIAL_ADMIN_HANDOVER_LOGS);
   };
 
+  // Fresh setup & reset ledger (Admin authority)
+  const resetSocietyData = async (params: {
+    monthYear: string;
+    monthlyMaintenanceRate: number;
+    openingBalance: number;
+    electricityBill: ElectricityBill;
+    initialExpenses?: ExpenseItem[];
+    initializeFlats?: boolean;
+  }) => {
+    const { monthYear, monthlyMaintenanceRate, openingBalance, electricityBill, initialExpenses = [], initializeFlats = true } = params;
+
+    const newMonthConfig: MonthConfig = {
+      monthYear,
+      monthName: monthYear,
+      openingBalance,
+      standardMaintenanceAmount: monthlyMaintenanceRate,
+      proposedMaintenanceSummary: `Standard maintenance rate is ₹${monthlyMaintenanceRate.toLocaleString('en-IN')}.`,
+    };
+
+    // Keep admin user profile
+    const adminUser: User = (currentUser && currentUser.role === 'admin')
+      ? currentUser
+      : (users.find(u => u.role === 'admin') || INITIAL_USERS[0]);
+
+    const newUsers: User[] = [adminUser];
+    let newRecords: MaintenanceRecord[] = [];
+
+    if (initializeFlats) {
+      const WING_C_FLAT_NUMBERS = [
+        'C-101', 'C-102', 'C-103', 'C-104',
+        'C-201', 'C-202', 'C-203', 'C-204',
+        'C-301', 'C-302', 'C-303', 'C-304',
+        'C-401', 'C-402', 'C-403', 'C-404'
+      ];
+
+      newRecords = WING_C_FLAT_NUMBERS.map(flat => {
+        const isCurrentAdminFlat = flat === adminUser.flatNumber;
+        return {
+          id: `rec-${monthYear}-${flat}`,
+          monthYear,
+          userId: isCurrentAdminFlat ? adminUser.id : undefined,
+          flatNumber: flat,
+          userName: isCurrentAdminFlat ? adminUser.name : `Flat ${flat}`,
+          phone: isCurrentAdminFlat ? adminUser.mobile : '',
+          maintenanceDue: monthlyMaintenanceRate,
+          pendingAmount: 0,
+          maintenancePaid: 0,
+          isPaid: false,
+          notes: isCurrentAdminFlat ? 'Admin Flat' : 'Unassigned / Blank ledger line'
+        };
+      });
+    } else {
+      newRecords = [{
+        id: `rec-${monthYear}-${adminUser.flatNumber}`,
+        monthYear,
+        userId: adminUser.id,
+        flatNumber: adminUser.flatNumber,
+        userName: adminUser.name,
+        phone: adminUser.mobile,
+        maintenanceDue: monthlyMaintenanceRate,
+        pendingAmount: 0,
+        maintenancePaid: 0,
+        isPaid: false,
+        notes: 'Admin Flat'
+      }];
+    }
+
+    // Update Local Storage and State
+    setSelectedMonth(monthYear);
+    setUsers(newUsers);
+    setMonthsConfig({ [monthYear]: newMonthConfig });
+    setElectricityBills({ [monthYear]: electricityBill });
+    setExpenses(initialExpenses);
+    setMaintenanceRecordsMap({ [monthYear]: newRecords });
+
+    // Sync to Firestore
+    try {
+      await resetFirestoreSocietyData({
+        adminUser,
+        monthConfig: newMonthConfig,
+        electricityBill,
+        expenses: initialExpenses,
+        maintenanceRecords: newRecords
+      });
+    } catch (err) {
+      console.warn('Could not sync fresh reset to Firestore (offline or rule constraint):', err);
+    }
+  };
+
+  // ==========================================
+  // PASSWORD RECOVERY VIA GMAIL & FIREBASE
+  // ==========================================
+
+  // In-memory OTP cache for instant verification
+  const [resetCodes, setResetCodes] = useState<Record<string, { code: string; expiresAt: number }>>({});
+
+  const requestPasswordReset = async (
+    email: string
+  ): Promise<{ success: boolean; message: string; code?: string; viaGmail: boolean }> => {
+    const cleanEmail = email.trim().toLowerCase();
+    const user = users.find((u) => u.email && u.email.trim().toLowerCase() === cleanEmail);
+    if (!user) {
+      return {
+        success: false,
+        message: `No registered society resident found with email "${email}". Please verify the email address or register a new flat account.`,
+        viaGmail: false,
+      };
+    }
+
+    // Generate random 6-digit numeric verification code
+    const generatedCode = String(Math.floor(100000 + Math.random() * 900000));
+    const expiresAt = Date.now() + 15 * 60 * 1000;
+
+    // Cache locally for instant verification
+    setResetCodes((prev) => ({
+      ...prev,
+      [cleanEmail]: { code: generatedCode, expiresAt },
+    }));
+
+    // Save to Firestore (with timeout safeguard so it never blocks)
+    try {
+      await Promise.race([
+        savePasswordResetCode(cleanEmail, generatedCode),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Firestore timeout')), 2000)),
+      ]);
+    } catch (e) {
+      console.warn('Firestore code sync skipped (using in-memory verification):', e);
+    }
+
+    // Send email via Gmail API
+    const emailRes = await sendPasswordResetEmailViaGmail({
+      recipientEmail: cleanEmail,
+      recipientName: user.name,
+      resetCode: generatedCode,
+      senderEmail: currentUser?.email || 'admin@lakeview.burari',
+    });
+
+    return {
+      success: true,
+      message: emailRes.message,
+      code: generatedCode,
+      viaGmail: emailRes.viaGmail,
+    };
+  };
+
+  const verifyPasswordReset = async (
+    email: string,
+    code: string
+  ): Promise<{ valid: boolean; message: string }> => {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanCode = code.trim();
+
+    // 1. Check local state cache
+    const cached = resetCodes[cleanEmail];
+    if (cached) {
+      if (Date.now() > cached.expiresAt) {
+        return { valid: false, message: 'This 6-digit verification code has expired. Please request a new code.' };
+      }
+      if (cached.code === cleanCode) {
+        return { valid: true, message: 'Verification successful!' };
+      }
+    }
+
+    // 2. Check Firestore
+    return await verifyCodeInFirestore(cleanEmail, cleanCode);
+  };
+
+  const resetPasswordWithCode = async (
+    email: string,
+    code: string,
+    newPassword: string
+  ): Promise<{ success: boolean; message: string }> => {
+    const cleanEmail = email.trim().toLowerCase();
+
+    // Verify code first
+    const verification = await verifyPasswordReset(cleanEmail, code);
+    if (!verification.valid) {
+      return { success: false, message: verification.message };
+    }
+
+    if (!newPassword || newPassword.length < 6) {
+      return { success: false, message: 'Password must be at least 6 characters long.' };
+    }
+
+    // Update in local state
+    setUsers((prev) =>
+      prev.map((u) =>
+        u.email && u.email.trim().toLowerCase() === cleanEmail ? { ...u, password: newPassword } : u
+      )
+    );
+
+    // Update in Firestore
+    const firestoreRes = await updateUserPasswordInFirestore(cleanEmail, newPassword);
+
+    // Clear used code from cache
+    setResetCodes((prev) => {
+      const copy = { ...prev };
+      delete copy[cleanEmail];
+      return copy;
+    });
+
+    return {
+      success: true,
+      message: firestoreRes.success
+        ? 'Password updated successfully! Firebase has saved your new password.'
+        : 'Password updated successfully!',
+    };
+  };
+
+  // ==========================================
+  // RESET ALL DETAILS TO CLEAN FIRST TIME USE
+  // ==========================================
+  const resetAllToFirstTimeUse = async (): Promise<{ success: boolean; message: string }> => {
+    try {
+      // 1. Clear old localStorage keys
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith(STORAGE_PREFIX) || key.startsWith('wing_c_')) {
+          localStorage.removeItem(key);
+        }
+      });
+      localStorage.setItem('wing_c_first_time_ready_v3', 'true');
+
+      // 2. Reset state variables
+      setUsers(INITIAL_USERS);
+      setCurrentUserId('user-admin-1');
+      setSelectedMonth(INITIAL_MONTH_KEY);
+      setMonthsConfig({ [INITIAL_MONTH_KEY]: INITIAL_MONTH_CONFIG });
+      setElectricityBills({ [INITIAL_MONTH_KEY]: INITIAL_ELECTRICITY_BILL });
+      setExpenses([]);
+      setMaintenanceRecordsMap({ [INITIAL_MONTH_KEY]: INITIAL_MAINTENANCE_RECORDS });
+      setAdminHandoverLogs(INITIAL_ADMIN_HANDOVER_LOGS);
+
+      // 3. Reset Firestore collections to fresh initial state
+      const adminUser = INITIAL_USERS[0];
+      await resetFirestoreSocietyData({
+        adminUser,
+        monthConfig: INITIAL_MONTH_CONFIG,
+        electricityBill: INITIAL_ELECTRICITY_BILL,
+        expenses: [],
+        maintenanceRecords: INITIAL_MAINTENANCE_RECORDS,
+      });
+
+      return {
+        success: true,
+        message: 'All details have been completely reset and initialized ready for first-time use!',
+      };
+    } catch (err: any) {
+      console.warn('Reset error:', err);
+      return {
+        success: false,
+        message: 'Reset error: ' + (err?.message || String(err)),
+      };
+    }
+  };
+
+  // Automatic one-time clean setup on initial boot if not yet initialized
+  useEffect(() => {
+    const isCleaned = localStorage.getItem('wing_c_first_time_ready_v3');
+    if (!isCleaned) {
+      resetAllToFirstTimeUse().catch(console.warn);
+    }
+  }, []);
+
   return (
     <SocietyContext.Provider
       value={{
@@ -698,6 +1033,10 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         registerUser,
         updateProfile,
         deleteUser,
+        requestPasswordReset,
+        verifyPasswordReset,
+        resetPasswordWithCode,
+        resetAllToFirstTimeUse,
         currentAdmin,
         transferAdminRole,
         adminHandoverLogs,
@@ -727,6 +1066,7 @@ export const SocietyProvider: React.FC<{ children: React.ReactNode }> = ({ child
         deleteExpense,
         allUsers: users,
         resetToDefaults,
+        resetSocietyData,
       }}
     >
       {children}

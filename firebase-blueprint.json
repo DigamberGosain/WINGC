@@ -111,6 +111,20 @@
         "remarks": { "type": "string", "maxLength": 300 }
       },
       "required": ["id", "fromAdminName", "toAdminName", "transferDate", "handoverTenureMonths"]
+    },
+    "passwordResetRequest": {
+      "title": "PasswordResetRequest",
+      "description": "Password reset verification codes and expiration",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 100 },
+        "code": { "type": "string", "maxLength": 10 },
+        "createdAt": { "type": "string", "maxLength": 30 },
+        "expiresAt": { "type": "number" },
+        "used": { "type": "boolean" }
+      },
+      "required": ["id", "email", "code", "expiresAt", "used"]
     }
   },
   "firestore": {
@@ -137,6 +151,10 @@
     "/adminHandoverLogs/{logId}": {
       "schema": "adminHandoverLog",
       "description": "Admin appointment and handover history logs"
+    },
+    "/passwordResetRequests/{requestId}": {
+      "schema": "passwordResetRequest",
+      "description": "Verification OTP records for self-service password reset"
     }
   }
 }

@@ -18,6 +18,7 @@ import {
 interface NavbarProps {
   onOpenAuth: () => void;
   onOpenPlayStoreModal: () => void;
+  onOpenDownloadModal: () => void;
   isMobileDeviceFrame?: boolean;
   onToggleMobileFrame?: () => void;
   onNavigateToTab: (tab: string) => void;
@@ -26,6 +27,7 @@ interface NavbarProps {
 export const Navbar: React.FC<NavbarProps> = ({
   onOpenAuth,
   onOpenPlayStoreModal,
+  onOpenDownloadModal,
   onNavigateToTab,
 }) => {
   const { currentUser, currentRole, isAdmin, logout, selectedMonth, setSelectedMonth, availableMonths, activeRunningMonth } = useSociety();
@@ -75,6 +77,18 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* PWA Install Button */}
           <PWAInstallButton />
+
+          {/* Direct Project Download Button */}
+          <button
+            type="button"
+            id="btn-download-project-header"
+            onClick={onOpenDownloadModal}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition shadow-xs"
+            title="Download Complete Project ZIP"
+          >
+            <FileDown className="w-3.5 h-3.5" />
+            <span className="hidden xs:inline">Download ZIP</span>
+          </button>
 
           {/* Host & APK Test Button (Hidden on small mobile to prevent header overflow, accessible via menu) */}
           <button
@@ -176,15 +190,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span>Switch Resident / Register</span>
                   </button>
 
-                  <a
-                    href="/wing-c-lakeview-android-project.zip"
-                    download="wing-c-lakeview-android-project.zip"
-                    onClick={() => setShowUserDropdown(false)}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowUserDropdown(false);
+                      onOpenDownloadModal();
+                    }}
                     className="w-full text-left px-3 py-2 text-emerald-400 hover:bg-slate-800 flex items-center gap-2 font-medium"
                   >
                     <FileDown className="w-3.5 h-3.5 text-emerald-400" />
-                    <span>Download Android Project (ZIP)</span>
-                  </a>
+                    <span>Download Project (Full / Android)</span>
+                  </button>
 
                   <div className="border-t border-slate-800 mt-1 pt-1">
                     <button

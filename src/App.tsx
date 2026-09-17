@@ -9,12 +9,15 @@ import { ProfileTab } from './components/ProfileTab';
 import { ElectricityModal } from './components/ElectricityModal';
 import { AuthModal } from './components/AuthModal';
 import { PlayStoreGuideModal } from './components/PlayStoreGuideModal';
+import { DownloadProjectModal } from './components/DownloadProjectModal';
+
 const SocietyAppContent: React.FC = () => {
   const { currentUser, currentRole, isAdmin } = useSociety();
 
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
   const [isPlayStoreModalOpen, setIsPlayStoreModalOpen] = useState<boolean>(false);
+  const [isDownloadModalOpen, setIsDownloadModalOpen] = useState<boolean>(false);
   const [isElectricityModalOpen, setIsElectricityModalOpen] = useState<boolean>(false);
   const [selectedRecordIdForPay, setSelectedRecordIdForPay] = useState<string | null>(null);
 
@@ -41,6 +44,7 @@ const SocietyAppContent: React.FC = () => {
         <Navbar
           onOpenAuth={() => setIsAuthModalOpen(true)}
           onOpenPlayStoreModal={() => setIsPlayStoreModalOpen(true)}
+          onOpenDownloadModal={() => setIsDownloadModalOpen(true)}
           onNavigateToTab={handleSelectTab}
         />
 
@@ -91,6 +95,11 @@ const SocietyAppContent: React.FC = () => {
       <PlayStoreGuideModal
         isOpen={isPlayStoreModalOpen}
         onClose={() => setIsPlayStoreModalOpen(false)}
+      />
+
+      <DownloadProjectModal
+        isOpen={isDownloadModalOpen}
+        onClose={() => setIsDownloadModalOpen(false)}
       />
     </div>
   );
