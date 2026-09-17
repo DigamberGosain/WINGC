@@ -33,7 +33,7 @@ jobs:
 
       - name: Force Accept All Android Licenses
         run: |
-          mkdir -p       $ANDROID_HOME/licenses
+          mkdir -p $ANDROID_HOME/licenses
           echo -e "\n893a6ce539dba9e8bfd74c75e015073111f78af1\n24333f1a63b6b1211de43a9d906300a9f9bb1f44\xd56f5187479451eabf01fb74314b1995194d346d\n2744d159b35858f1857c0412b6f12f114a34ea48\n601085b94cd77f6b54b78cf0de23c124e532a27f\nc36c7b21de32df0a41116a881a62a9d758b1d289\n1194f15b34d75a3a77af2934b3559195e7c4e107" > $ANDROID_HOME/licenses/android-sdk-license
           echo -e "\n84831b9409646a918e30573bab4c9c91346d8abd" > $ANDROID_HOME/licenses/android-sdk-preview-license
           echo -e "\ne9ac30531ff22e7b9b7ceee2e662122ff5e79945" > $ANDROID_HOME/licenses/google-tv-license
@@ -41,6 +41,11 @@ jobs:
 
       - name: Sync Capacitor to Android
         run: bunx cap sync android
+
+      - name: Fix AndroidX Property Roadblock
+        run: |
+          echo "android.useAndroidX=true" >> android/gradle.properties
+          echo "android.enableJetifier=true" >> android/gradle.properties
 
       - name: Build APK with Gradle
         run: |
