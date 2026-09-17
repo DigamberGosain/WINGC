@@ -44,9 +44,14 @@ jobs:
 
       - name: Auto-Generate Missing App Resources
         run: |
+          # Force create parent directories safely using -p flags first
           mkdir -p android/app/src/main/res/values
           mkdir -p android/app/src/main/res/xml
           mkdir -p android/app/src/main/res/mipmap-mdpi
+          mkdir -p android/app/src/main/res/mipmap-hdpi
+          mkdir -p android/app/src/main/res/mipmap-xhdpi
+          mkdir -p android/app/src/main/res/mipmap-xxhdpi
+          mkdir -p android/app/src/main/res/mipmap-xxxhdpi
           
           # Generate base string resources if missing
           echo '<?xml version="1.0" encoding="utf-8"?><resources><string name="app_name">Lakeview App</string><string name="title_activity_main">MainActivity</string></resources>' > android/app/src/main/res/values/strings.xml
@@ -57,9 +62,21 @@ jobs:
           # Generate empty xml provider paths if missing
           echo '<?xml version="1.0" encoding="utf-8"?><paths><external-path name="external_files" path="."/></paths>' > android/app/src/main/res/xml/file_paths.xml
           
-          # Download generic fallback icons to clear structural compiler checks
+          # Download generic fallback icons to clear structural compiler checks across all asset buckets
           curl -s -o android/app/src/main/res/mipmap-mdpi/ic_launcher.png https://githubusercontent.com
           cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png
+          
+          cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-hdpi/ic_launcher.png
+          cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png
+          
+          cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
+          cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png
+          
+          cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+          cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png
+          
+          cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png
 
       - name: Fix AndroidX Property Roadblock
         run: |
