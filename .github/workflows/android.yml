@@ -11,21 +11,21 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Setup Node.js Engine
         uses: actions/setup-node@v4
         with:
           node-version: 22
 
-      - name: Install Bun
+      - name: Install Bun Tooling
         uses: oven-sh/setup-bun@v1
 
-      - name: Install Dependencies
+      - name: Install Web Project Dependencies
         run: bun install
 
-      - name: Build Web App
+      - name: Compile Distributable Web App
         run: bun run build
 
-      - name: Setup Java JDK 21
+      - name: Setup Java JDK 21 Environment
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
@@ -39,12 +39,18 @@ jobs:
           echo -e "\ne9ac30531ff22e7b9b7ceee2e662122ff5e79945" > $ANDROID_HOME/licenses/google-tv-license
           echo -e "\n6592d133474b63339733a925a94e1d61b126be1b" > $ANDROID_HOME/licenses/android-googletv-license
 
-      - name: Sync Capacitor to Android
+      - name: Safely Initialize Android Platform Structure
+        run: |
+          if [ ! -d "android" ]; then
+            bunx cap add android
+          fi
+
+      - name: Sync Capacitor Web Assets to Native Container
         run: bunx cap sync android
 
-      - name: Auto-Generate Missing App Resources
+      - name: Auto-Generate Missing Structural App Resources
         run: |
-          # Force create parent directories safely using -p flags first
+          # Create missing folder directories layer by layer securely
           mkdir -p android/app/src/main/res/values
           mkdir -p android/app/src/main/res/xml
           mkdir -p android/app/src/main/res/mipmap-mdpi
@@ -53,43 +59,40 @@ jobs:
           mkdir -p android/app/src/main/res/mipmap-xxhdpi
           mkdir -p android/app/src/main/res/mipmap-xxxhdpi
           
-          # Generate base string resources if missing
+          # Inject foundational string files if missing
           echo '<?xml version="1.0" encoding="utf-8"?><resources><string name="app_name">Lakeview App</string><string name="title_activity_main">MainActivity</string></resources>' > android/app/src/main/res/values/strings.xml
           
-          # Generate base styling resources if missing
+          # Inject fundamental styling maps if missing
           echo '<?xml version="1.0" encoding="utf-8"?><resources><style name="AppTheme" parent="Theme.AppCompat.Light.DarkActionBar"/><style name="AppTheme.NoActionBarLaunch" parent="Theme.AppCompat.Light.NoActionBar"/></resources>' > android/app/src/main/res/values/styles.xml
           
-          # Generate empty xml provider paths if missing
+          # Inject XML system path mappings if missing
           echo '<?xml version="1.0" encoding="utf-8"?><paths><external-path name="external_files" path="."/></paths>' > android/app/src/main/res/xml/file_paths.xml
           
-          # Download generic fallback icons to clear structural compiler checks across all asset buckets
-          curl -s -o android/app/src/main/res/mipmap-mdpi/ic_launcher.png https://githubusercontent.com
+          # Stream down placeholder icon assets to satisfy compiler validation checks
+          curl -s -L -o android/app/src/main/res/mipmap-mdpi/ic_launcher.png https://githubusercontent.com
           cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png
-          
           cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-hdpi/ic_launcher.png
           cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png
-          
           cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
           cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png
-          
           cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
           cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png
-          
           cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
           cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png
 
-      - name: Fix AndroidX Property Roadblock
+      - name: Tweak AndroidX Global Property Flags
         run: |
+          touch android/gradle.properties
           echo "android.useAndroidX=true" >> android/gradle.properties
           echo "android.enableJetifier=true" >> android/gradle.properties
 
-      - name: Build APK with Gradle
+      - name: Run Native Gradle Compiler to Output APK
         run: |
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug
 
-      - name: Upload Finished APK
+      - name: Archive and Upload Finished App Package
         uses: actions/upload-artifact@v4
         with:
           name: society-app-apk
