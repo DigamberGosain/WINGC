@@ -63,17 +63,17 @@ jobs:
           # Inject XML system path mappings if missing
           echo '<?xml version="1.0" encoding="utf-8"?><paths><external-path name="external_files" path="."/></paths>' > android/app/src/main/res/xml/file_paths.xml
           
-          # Stream down placeholder icon assets to satisfy compiler validation checks
-          curl -s -L -o android/app/src/main/res/mipmap-mdpi/ic_launcher.png https://githubusercontent.com
-          cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png
-          cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-hdpi/ic_launcher.png
-          cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png
-          cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
-          cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png
-          cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
-          cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png
-          cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
-          cp android/app/src/main/res/mipmap-mdpi/ic_launcher.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png
+          # Generate empty dummy text/image assets to pass compiler validation safely without downloading items
+          touch android/app/src/main/res/mipmap-mdpi/ic_launcher.png
+          touch android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png
+          touch android/app/src/main/res/mipmap-hdpi/ic_launcher.png
+          touch android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png
+          touch android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
+          touch android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png
+          touch android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+          touch android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png
+          touch android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          touch android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png
 
       - name: Tweak AndroidX Global Property Flags
         run: |
