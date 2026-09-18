@@ -45,7 +45,7 @@ jobs:
 
       - name: Auto-Generate Missing Structural App Resources
         run: |
-          # Create missing folder directories layer by layer securely
+          # Force create parent directories safely layer by layer
           mkdir -p android/app/src/main/res/values
           mkdir -p android/app/src/main/res/xml
           mkdir -p android/app/src/main/res/mipmap-mdpi
