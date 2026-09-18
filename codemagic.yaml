@@ -5,27 +5,21 @@ workflows:
     instance_type: mac_mini_m1
     environment:
       node: 22
-      java: 17
+      java: 21
     triggering:
       events:
         - push
     scripts:
-      - name: Install Bun Tooling
-        script: curl -fsSL https://bun.sh | bash && export PATH="$HOME/.bun/bin:$PATH"
       - name: Install Project Dependencies
-        script: |
-          export PATH="$HOME/.bun/bin:$PATH"
-          bun install
+        script: npm install
       - name: Compile Distributable Web App
-        script: |
-          export PATH="$HOME/.bun/bin:$PATH"
-          bun run build
+        script: npm run build
       - name: Sync Capacitor Web Assets to Native Container
-        script: |
-          export PATH="$HOME/.bun/bin:$PATH"
-          bunx cap sync android
+        script: npx cap sync android
       - name: Tweak AndroidX Global Property Flags
         script: |
+          mkdir -p android
+          touch android/gradle.properties
           echo "android.useAndroidX=true" >> android/gradle.properties
           echo "android.enableJetifier=true" >> android/gradle.properties
       - name: Run Native Gradle Compiler to Output APK
